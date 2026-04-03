@@ -16,3 +16,4 @@ Example setup
 
 ![guild](https://github.com/user-attachments/assets/d97ddce7-dd8f-4dfc-8596-5be417f50ab7)
 ![who](https://github.com/user-attachments/assets/a9d5b1b4-83e3-4464-8a90-d27a42237078)
+![info](https://github.com/user-attachments/assets/247f48fd-5191-4031-a61f-f78807c4fec2)
