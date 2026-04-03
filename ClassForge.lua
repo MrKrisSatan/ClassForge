@@ -252,22 +252,28 @@ function ClassForge:StartAutoBroadcast()
     end)
 end
 
--- ==================== NEW: Friends List Support ====================
+-- ==================== IMPROVED: Friends List Custom Class Display (WotLK 3.3.5) ====================
 function ClassForge:UpdateFriendsList()
-    if not FriendsFrame or not FriendsFrame:IsShown() then return end
+    if not FriendsFrame or not FriendsFrame:IsShown() then 
+        return 
+    end
 
-    -- Hook the friend buttons (works on most WotLK clients)
+    -- Only update when on the Friends tab
+    if FriendsFrame.selectedTab ~= 1 then return end
+
     for i = 1, FRIENDS_TO_DISPLAY do
         local button = _G["FriendsFrameFriendButton" .. i]
-        if button and button.index then
+        if button and button.name and button.index then
             local name = GetFriendInfo(button.index)
             if name then
                 local data = self:GetDataForName(name)
-                if data and data.className then
-                    local colored = self:GetColoredClassText(data)
-                    if button.name then
-                        -- Append to name if possible
-                        button.name:SetText(button.name:GetText() .. " " .. colored)
+                if data and data.className and data.className ~= "Hero" then
+                    local coloredClass = self:GetColoredClassText(data)
+                    
+                    local currentText = button.name:GetText() or name
+                    -- Avoid duplicating the class if it's already there
+                    if not currentText:find(data.className, 1, true) then
+                        button.name:SetText(currentText .. "  " .. coloredClass)
                     end
                 end
             end
@@ -275,7 +281,68 @@ function ClassForge:UpdateFriendsList()
     end
 end
 
--- ==================== NEW: Raid/Party Tooltip Support ====================
+-- Stronger hooks for Friends list
+hooksecurefunc("FriendsFrame_Update", function()
+    C_Timer.After(0.05, function() ClassForge:UpdateFriendsList() end)
+end)
+
+hooksecurefunc("FriendsList_Update", function()
+    C_Timer.After(0.05, function() ClassForge:UpdateFriendsList() end)
+end)
+
+-- Update when switching tabs or opening Friends frame
+FriendsFrame:HookScript("OnShow", function()
+    C_Timer.After(0.2, function() ClassForge:UpdateFriendsList() end)
+end)
+
+-- Also update when the friend list scrolls or refreshes
+if FriendsFrameFriendsScrollFrame then
+    hooksecurefunc(FriendsFrameFriendsScrollFrame, "Update", function()
+        C_Timer.After(0.05, function() ClassForge:UpdateFriendsList() end)
+    end)
+end
+
+-- ==================== FIXED: Who List (prevents reverting to "Hero") ====================
+function ClassForge:UpdateWhoList()
+    if not WhoFrame or not WhoFrame:IsShown() then return end
+
+    for i = 1, WHOS_TO_DISPLAY do
+        local button = _G["WhoFrameButton" .. i]
+        if button and button.index then
+            local name = GetWhoInfo(button.index)
+            if name then
+                local data = self:GetDataForName(name)
+                if data and data.className then
+                    local coloredClass = self:GetColoredClassText(data)
+
+                    -- Replace or append the class column safely
+                    if button.class then
+                        button.class:SetText(coloredClass)
+                    elseif button.name then
+                        local current = button.name:GetText() or name
+                        if not current:find(data.className, 1, true) then
+                            button.name:SetText(current .. "  " .. coloredClass)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Stronger hook for Who list to survive dropdown changes and refreshes
+hooksecurefunc("WhoList_Update", function()
+    ClassForge:UpdateWhoList()
+end)
+
+-- Also hook the dropdown selection change
+if WhoFrameDropDown then
+    hooksecurefunc(WhoFrameDropDown, "SetValue", function()
+        C_Timer.After(0.1, function()
+            ClassForge:UpdateWhoList()
+        end)
+    end)
+end-- ==================== NEW: Raid/Party Tooltip Support ====================
 hooksecurefunc("GameTooltip_SetDefaultAnchor", function(tooltip, parent)
     if parent and parent.unit and UnitIsPlayer(parent.unit) then
         local name = UnitName(parent.unit)
