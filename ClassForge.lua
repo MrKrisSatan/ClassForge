@@ -252,12 +252,11 @@ function ClassForge:StartAutoBroadcast()
     end)
 end
 
--- ==================== STRONGER: Friends List Custom Class Display (WotLK 3.3.5) ====================
+-- ==================== DIRECT Friends List Override (WotLK 3.3.5) ====================
 function ClassForge:UpdateFriendsList()
-    if not FriendsFrame or not FriendsFrame:IsShown() then 
-        return 
+    if not FriendsFrame or not FriendsFrame:IsShown() or FriendsFrame.selectedTab ~= 1 then
+        return
     end
-    if FriendsFrame.selectedTab ~= 1 then return end   -- Only on Friends tab
 
     for i = 1, FRIENDS_TO_DISPLAY do
         local button = _G["FriendsFrameFriendButton" .. i]
@@ -267,61 +266,46 @@ function ClassForge:UpdateFriendsList()
                 local data = self:GetDataForName(name)
                 if data and data.className and data.className ~= "Hero" then
                     local coloredClass = self:GetColoredClassText(data)
-                    
-                    local currentText = button.name:GetText() or name
-                    -- Prevent duplicate entries
-                    if not currentText:find(data.className, 1, true) then
-                        button.name:SetText(currentText .. "   " .. coloredClass)
-                    end
+
+                    -- Force the name text with custom class appended
+                    local baseText = name  -- start with just the name
+                    button.name:SetText(baseText .. "   " .. coloredClass)
                 end
             end
         end
     end
 end
 
--- Very aggressive hooking + timer for stubborn WotLK private server frames
+-- Aggressive update hooks + timer
 hooksecurefunc("FriendsFrame_Update", function()
-    C_Timer.After(0.1, function() ClassForge:UpdateFriendsList() end)
+    C_Timer.After(0.15, ClassForge.UpdateFriendsList)
 end)
 
 hooksecurefunc("FriendsList_Update", function()
-    C_Timer.After(0.1, function() ClassForge:UpdateFriendsList() end)
+    C_Timer.After(0.15, ClassForge.UpdateFriendsList)
 end)
 
--- Update when opening Friends frame
+-- When Friends frame is opened
 if FriendsFrame then
     FriendsFrame:HookScript("OnShow", function()
-        C_Timer.After(0.3, function() ClassForge:UpdateFriendsList() end)
-    end)
-end
-
--- Timer that keeps updating while Friends frame is open (helps with scroll / refresh issues)
-local friendsUpdateTicker = nil
-local function StartFriendsUpdateTicker()
-    if friendsUpdateTicker then friendsUpdateTicker:Cancel() end
-    friendsUpdateTicker = C_Timer.NewTicker(0.5, function()
-        if FriendsFrame and FriendsFrame:IsShown() and FriendsFrame.selectedTab == 1 then
-            ClassForge:UpdateFriendsList()
-        else
-            if friendsUpdateTicker then 
-                friendsUpdateTicker:Cancel() 
-                friendsUpdateTicker = nil 
-            end
+        C_Timer.After(0.4, ClassForge.UpdateFriendsList)
+        -- Start a short repeating update while the frame is open
+        if not ClassForge.friendsTicker then
+            ClassForge.friendsTicker = C_Timer.NewTicker(0.8, function()
+                if FriendsFrame and FriendsFrame:IsShown() and FriendsFrame.selectedTab == 1 then
+                    ClassForge:UpdateFriendsList()
+                end
+            end, 8)  -- run ~6-7 times after opening
         end
     end)
-end
 
--- Start the ticker when Friends frame shows
-if FriendsFrame then
-    FriendsFrame:HookScript("OnShow", StartFriendsUpdateTicker)
     FriendsFrame:HookScript("OnHide", function()
-        if friendsUpdateTicker then 
-            friendsUpdateTicker:Cancel() 
-            friendsUpdateTicker = nil 
+        if ClassForge.friendsTicker then
+            ClassForge.friendsTicker:Cancel()
+            ClassForge.friendsTicker = nil
         end
     end)
-end
--- ==================== FIXED: Who List (prevents reverting to "Hero") ====================
+end-- ==================== FIXED: Who List (prevents reverting to "Hero") ====================
 function ClassForge:UpdateWhoList()
     if not WhoFrame or not WhoFrame:IsShown() then return end
 
@@ -377,5 +361,72 @@ hooksecurefunc("GameTooltip_SetDefaultAnchor", function(tooltip, parent)
             end
             tooltip:Show()
         end
+    end
+end)
+-- ==================== DEBUG: Friends List & Tooltip (Simple Test) ====================
+
+-- Simple Friends List override
+function ClassForge:DebugUpdateFriendsList()
+    if not FriendsFrame or not FriendsFrame:IsShown() or FriendsFrame.selectedTab ~= 1 then
+        return
+    end
+
+    for i = 1, FRIENDS_TO_DISPLAY do
+        local button = _G["FriendsFrameFriendButton" .. i]
+        if button and button.name and button.index then
+            local name = GetFriendInfo(button.index)
+            if name then
+                local data = self:GetDataForName(name)
+                if data and data.className and data.className ~= "Hero" then
+                    local colored = self:GetColoredClassText(data)
+                    button.name:SetText(name .. "   " .. colored)
+                end
+            end
+        end
+    end
+end
+
+-- Force update on open + every 0.5s while open
+if FriendsFrame then
+    FriendsFrame:HookScript("OnShow", function()
+        C_Timer.After(0.5, function() ClassForge:DebugUpdateFriendsList() end)
+        C_Timer.After(1.0, function() ClassForge:DebugUpdateFriendsList() end)
+        C_Timer.After(2.0, function() ClassForge:DebugUpdateFriendsList() end)
+    end)
+end
+
+hooksecurefunc("FriendsFrame_Update", ClassForge.DebugUpdateFriendsList)
+hooksecurefunc("FriendsList_Update", ClassForge.DebugUpdateFriendsList)
+
+-- ==================== DEBUG: Tooltip for Mouseover (Raid/Party/Friends) ====================
+local function AddClassForgeToTooltip(tooltip, unit)
+    if not unit or not UnitIsPlayer(unit) then return end
+    local name = UnitName(unit)
+    if not name then return end
+
+    local data = ClassForge:GetDataForName(name)
+    if data and data.className and data.className ~= "Hero" then
+        tooltip:AddLine(" ")
+        tooltip:AddLine("ClassForge: " .. ClassForge:GetColoredClassText(data))
+        if data.role and data.role ~= "Wanderer" then
+            tooltip:AddLine("Role: " .. data.role)
+        end
+        if data.order and data.order ~= "Unaffiliated" then
+            tooltip:AddLine("Order: " .. data.order)
+        end
+        tooltip:Show()
+    end
+end
+
+GameTooltip:HookScript("OnTooltipSetUnit", function(self)
+    AddClassForgeToTooltip(self, select(2, self:GetUnit()))
+end)
+
+-- Also try for unit frames mouseover
+hooksecurefunc("GameTooltip_SetDefaultAnchor", function(tooltip, parent)
+    if parent and parent.unit then
+        C_Timer.After(0.05, function()
+            AddClassForgeToTooltip(tooltip, parent.unit)
+        end)
     end
 end)
