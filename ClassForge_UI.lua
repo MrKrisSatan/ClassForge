@@ -34,6 +34,7 @@ function ClassForge:HandleSlash(message)
         self:Print("/cf setorder <order>")
         self:Print("/cf show")
         self:Print("/cf sync")
+        self:Print("/cf resetpanel")
         self:Print("/cf reset")
         self:Print("/cf options")
         return
@@ -105,8 +106,19 @@ function ClassForge:HandleSlash(message)
         self:RefreshPlayerCache()
         self:BroadcastStartup()
         self:RequestSyncFromFriends()
-        self:PerformWhoSync()
-        self:Print("Sync started.")
+        if self:PerformWhoSync() then
+            self:Print("Sync started.")
+        else
+            self:Print("Sync throttled. Try again in a moment.")
+        end
+        return
+    end
+
+    if command == "resetpanel" then
+        if self.ResetTargetProfilePosition then
+            self:ResetTargetProfilePosition()
+            self:Print("Target profile panel reset.")
+        end
         return
     end
 
@@ -225,6 +237,20 @@ function ClassForge:CreateOptionsPanel()
         orderBox:SetText(ClassForge.defaults.profile.order)
         updatePreview()
     end)
+
+    local panelButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    panelButton:SetWidth(140)
+    panelButton:SetHeight(24)
+    panelButton:SetPoint("TOPLEFT", saveButton, "BOTTOMLEFT", 0, -10)
+    panelButton:SetText("Reset Panel")
+    panelButton:SetScript("OnClick", function()
+        ClassForge:ResetTargetProfilePosition()
+        ClassForge:Print("Target profile panel reset.")
+    end)
+
+    local panelHint = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    panelHint:SetPoint("LEFT", panelButton, "RIGHT", 10, 0)
+    panelHint:SetText("Hold Shift and drag the target panel to move it.")
 
     panel:SetScript("OnShow", function()
         local profile = ClassForge:GetProfile()

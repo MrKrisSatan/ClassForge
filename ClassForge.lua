@@ -14,6 +14,17 @@ ClassForge.defaults = {
         color = "FFD100",
         role = "DPS",
         order = "",
+        targetProfilePosition = {
+            point = "TOP",
+            relativePoint = "BOTTOM",
+            x = 0,
+            y = -20,
+        },
+        syncThrottle = {
+            broadcast = 10,
+            whisper = 20,
+            who = 30,
+        },
     },
 }
 
@@ -116,6 +127,14 @@ function ClassForge:PLAYER_LOGIN()
     if RegisterAddonMessagePrefix then
         RegisterAddonMessagePrefix(self.prefix)
     end
+
+    self.syncState = {
+        broadcasts = {},
+        whispers = {},
+        who = {
+            lastRun = 0,
+        },
+    }
 
     self:SetupSlashCommands()
     self:CreateOptionsPanel()

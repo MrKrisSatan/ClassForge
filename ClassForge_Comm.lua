@@ -22,6 +22,58 @@ function ClassForge:SerializeData(data)
     }, "|")
 end
 
+function ClassForge:GetThrottleValue(kind)
+    local profile = self:GetProfile()
+    local syncThrottle = profile and profile.syncThrottle or nil
+    local value = syncThrottle and syncThrottle[kind] or nil
+
+    return tonumber(value) or 0
+end
+
+function ClassForge:CanSendBroadcast(channel, target)
+    self.syncState = self.syncState or { broadcasts = {}, whispers = {}, who = { lastRun = 0 } }
+
+    local now = time()
+    if channel == "WHISPER" then
+        local key = self:GetPlayerKey(target)
+        if not key then
+            return false
+        end
+
+        local interval = self:GetThrottleValue("whisper")
+        local lastSent = self.syncState.whispers[key] or 0
+        if interval > 0 and (now - lastSent) < interval then
+            return false
+        end
+
+        self.syncState.whispers[key] = now
+        return true
+    end
+
+    local interval = self:GetThrottleValue("broadcast")
+    local lastSent = self.syncState.broadcasts[channel] or 0
+    if interval > 0 and (now - lastSent) < interval then
+        return false
+    end
+
+    self.syncState.broadcasts[channel] = now
+    return true
+end
+
+function ClassForge:CanRunWhoSync()
+    self.syncState = self.syncState or { broadcasts = {}, whispers = {}, who = { lastRun = 0 } }
+
+    local interval = self:GetThrottleValue("who")
+    local now = time()
+    local lastRun = self.syncState.who.lastRun or 0
+    if interval > 0 and (now - lastRun) < interval then
+        return false
+    end
+
+    self.syncState.who.lastRun = now
+    return true
+end
+
 function ClassForge:DeserializeData(message)
     if type(message) ~= "string" then
         return nil
@@ -45,6 +97,10 @@ end
 function ClassForge:BroadcastSelf(channel, target)
     local profile = self:GetProfile()
     if not profile.enabled or not channel then
+        return
+    end
+
+    if not self:CanSendBroadcast(channel, target) then
         return
     end
 
@@ -120,10 +176,15 @@ function ClassForge:ProcessWhoResults()
 end
 
 function ClassForge:PerformWhoSync()
+    if not self:CanRunWhoSync() then
+        return false
+    end
+
     self.pendingWhoSync = true
     SetWhoToUI(1)
     SendWho("")
     self:ProcessWhoResults()
+    return true
 end
 
 function ClassForge:CHAT_MSG_ADDON(prefix, message, _, sender)

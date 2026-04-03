@@ -1,5 +1,6 @@
 function ClassForge:InitDisplay()
     self:HookTooltips()
+    self:HookFriendsTooltip()
     self:HookWhoFrame()
     self:HookGuildFrame()
     self:HookFriendsFrame()
@@ -9,6 +10,84 @@ function ClassForge:InitDisplay()
     self:SetupInspectHooks()
 end
 
+function ClassForge:GetTargetProfilePosition()
+    local profile = self:GetProfile()
+    local position = profile and profile.targetProfilePosition or nil
+    local defaults = self.defaults.profile.targetProfilePosition
+
+    return {
+        point = position and position.point or defaults.point,
+        relativePoint = position and position.relativePoint or defaults.relativePoint,
+        x = position and position.x or defaults.x,
+        y = position and position.y or defaults.y,
+    }
+end
+
+function ClassForge:ApplyTargetProfilePosition()
+    if not self.targetProfile or not TargetFrame then
+        return
+    end
+
+    local position = self:GetTargetProfilePosition()
+    self.targetProfile:ClearAllPoints()
+    self.targetProfile:SetPoint(position.point, TargetFrame, position.relativePoint, position.x, position.y)
+end
+
+function ClassForge:SaveTargetProfilePosition()
+    if not self.targetProfile then
+        return
+    end
+
+    local function round(value)
+        if not value then
+            return 0
+        end
+
+        if value >= 0 then
+            return math.floor(value + 0.5)
+        end
+
+        return math.ceil(value - 0.5)
+    end
+
+    local point, _, relativePoint, x, y = self.targetProfile:GetPoint(1)
+    if not point or not relativePoint then
+        return
+    end
+
+    ClassForgeDB.profile.targetProfilePosition = {
+        point = point,
+        relativePoint = relativePoint,
+        x = round(x),
+        y = round(y),
+    }
+end
+
+function ClassForge:ResetTargetProfilePosition()
+    ClassForgeDB.profile.targetProfilePosition = {
+        point = self.defaults.profile.targetProfilePosition.point,
+        relativePoint = self.defaults.profile.targetProfilePosition.relativePoint,
+        x = self.defaults.profile.targetProfilePosition.x,
+        y = self.defaults.profile.targetProfilePosition.y,
+    }
+    self:ApplyTargetProfilePosition()
+end
+
+function ClassForge:AppendTooltipData(tooltip, data)
+    if not tooltip or tooltip.classForgeTooltipApplied or not data then
+        return
+    end
+
+    tooltip.classForgeTooltipApplied = true
+    tooltip:AddLine(" ")
+    tooltip:AddLine("Class: " .. self:GetColoredClassText(data))
+    tooltip:AddLine("Role: |cffffffff" .. (data.role or "DPS") .. "|r")
+    if data.order and data.order ~= "" then
+        tooltip:AddLine("Order: |cffffffff" .. data.order .. "|r")
+    end
+    tooltip:Show()
+end
+
 function ClassForge:HookTooltips()
     if self.tooltipHooked then
         return
@@ -16,25 +95,168 @@ function ClassForge:HookTooltips()
 
     self.tooltipHooked = true
 
+    GameTooltip:HookScript("OnHide", function(tooltip)
+        tooltip.classForgeTooltipApplied = nil
+    end)
+
     GameTooltip:HookScript("OnTooltipSetUnit", function(tooltip)
         local _, unit = tooltip:GetUnit()
-        if not unit or not UnitIsPlayer(unit) then
+        if not unit or not UnitIsPlayer(unit) or not UnitExists("mouseover") or not UnitIsUnit(unit, "mouseover") then
             return
         end
 
-        local data = ClassForge:GetDataForUnit(unit)
+        local data = ClassForge:GetDataForUnit("mouseover")
         if not data then
             return
         end
 
-        tooltip:AddLine(" ")
-        tooltip:AddLine("Class: " .. ClassForge:GetColoredClassText(data))
-        tooltip:AddLine("Role: |cffffffff" .. (data.role or "DPS") .. "|r")
-        if data.order and data.order ~= "" then
-            tooltip:AddLine("Order: |cffffffff" .. data.order .. "|r")
-        end
-        tooltip:Show()
+        ClassForge:AppendTooltipData(tooltip, data)
     end)
+end
+
+function ClassForge:EnsureFriendsTooltipExtras()
+    if self.friendsTooltipExtras or not FriendsTooltip then
+        return
+    end
+
+    local classText = FriendsTooltip:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    classText:SetJustifyH("LEFT")
+    classText:SetWidth(188)
+
+    local roleText = FriendsTooltip:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    roleText:SetJustifyH("LEFT")
+    roleText:SetWidth(188)
+
+    local orderText = FriendsTooltip:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    orderText:SetJustifyH("LEFT")
+    orderText:SetWidth(188)
+
+    self.friendsTooltipExtras = {
+        classText = classText,
+        roleText = roleText,
+        orderText = orderText,
+    }
+end
+
+function ClassForge:GetFriendsTooltipBottomAnchor()
+    local candidates = {
+        FriendsTooltipToonMany,
+        FriendsTooltipToon5Info,
+        FriendsTooltipToon5Name,
+        FriendsTooltipToon4Info,
+        FriendsTooltipToon4Name,
+        FriendsTooltipToon3Info,
+        FriendsTooltipToon3Name,
+        FriendsTooltipToon2Info,
+        FriendsTooltipToon2Name,
+        FriendsTooltipOtherToons,
+        FriendsTooltipBroadcastText,
+        FriendsTooltipNoteText,
+        FriendsTooltipLastOnline,
+        FriendsTooltipToon1Info,
+        FriendsTooltipToon1Name,
+        FriendsTooltipHeader,
+    }
+
+    for _, region in ipairs(candidates) do
+        if region and region:IsShown() then
+            return region
+        end
+    end
+
+    return FriendsTooltipHeader
+end
+
+function ClassForge:HideFriendsTooltipExtras()
+    if not self.friendsTooltipExtras then
+        return
+    end
+
+    self.friendsTooltipExtras.classText:Hide()
+    self.friendsTooltipExtras.roleText:Hide()
+    self.friendsTooltipExtras.orderText:Hide()
+end
+
+function ClassForge:UpdateFriendsTooltip(button)
+    if not FriendsTooltip or not button or button.buttonType ~= FRIENDS_BUTTON_TYPE_WOW or not button.id then
+        self:HideFriendsTooltipExtras()
+        return
+    end
+
+    local name = GetFriendInfo(button.id)
+    local data = name and self:GetDataForName(name) or nil
+    if not data then
+        self:HideFriendsTooltipExtras()
+        return
+    end
+
+    self:EnsureFriendsTooltipExtras()
+
+    local anchor = self:GetFriendsTooltipBottomAnchor()
+    local classText = self.friendsTooltipExtras.classText
+    local roleText = self.friendsTooltipExtras.roleText
+    local orderText = self.friendsTooltipExtras.orderText
+
+    FriendsFrameTooltip_SetLine(classText, anchor, "Class: " .. self:GetColoredClassText(data), -8)
+    FriendsFrameTooltip_SetLine(roleText, classText, "Role: |cffffffff" .. (data.role or self.defaults.profile.role) .. "|r", -2)
+
+    if data.order and data.order ~= "" then
+        FriendsFrameTooltip_SetLine(orderText, roleText, "Order: |cffffffff" .. data.order .. "|r", -2)
+    else
+        orderText:Hide()
+    end
+
+    FriendsTooltip:SetHeight(FriendsTooltip.height + FRIENDS_TOOLTIP_MARGIN_WIDTH)
+    FriendsTooltip:SetWidth(min(FRIENDS_TOOLTIP_MAX_WIDTH, FriendsTooltip.maxWidth + FRIENDS_TOOLTIP_MARGIN_WIDTH))
+end
+
+function ClassForge:HookFriendsTooltip()
+    if self.friendsTooltipHooked or not FriendsTooltip then
+        return
+    end
+
+    self.friendsTooltipHooked = true
+
+    FriendsTooltip:HookScript("OnShow", function(tooltip)
+        if not tooltip.button then
+            ClassForge:HideFriendsTooltipExtras()
+            return
+        end
+
+        ClassForge:UpdateFriendsTooltip(tooltip.button)
+    end)
+
+    FriendsTooltip:HookScript("OnHide", function()
+        ClassForge:HideFriendsTooltipExtras()
+    end)
+end
+
+function ClassForge:GetVisibleFriendButtons()
+    local buttons = {}
+    local row = 1
+
+    while true do
+        local button = _G["FriendsFrameFriendsScrollFrameButton" .. row]
+        if not button then
+            break
+        end
+
+        buttons[#buttons + 1] = button
+        row = row + 1
+    end
+
+    return buttons
+end
+
+function ClassForge:GetFriendButtonNameFontString(button)
+    if not button or not button.GetName then
+        return nil
+    end
+
+    return button.name
+        or button.text
+        or _G[button:GetName() .. "Name"]
+        or _G[button:GetName() .. "Text"]
 end
 
 function ClassForge:HookWhoFrame()
@@ -131,6 +353,12 @@ function ClassForge:HookFriendsFrame()
         ClassForge:UpdateFriendsList()
     end)
 
+    if FriendsList_Update then
+        hooksecurefunc("FriendsList_Update", function()
+            ClassForge:UpdateFriendsList()
+        end)
+    end
+
     if FriendsFrame then
         FriendsFrame:HookScript("OnShow", function()
             ClassForge:UpdateFriendsList()
@@ -143,18 +371,24 @@ function ClassForge:UpdateFriendsList()
         return
     end
 
-    for row = 1, FRIENDS_TO_DISPLAY do
-        local button = _G["FriendsFrameFriendButton" .. row]
-        if button and button.name and button.index then
-            local name = GetFriendInfo(button.index)
+    local buttons = self:GetVisibleFriendButtons()
+
+    for _, button in ipairs(buttons) do
+        local nameFontString = self:GetFriendButtonNameFontString(button)
+        if button and button:IsShown() and nameFontString and button.buttonType == FRIENDS_BUTTON_TYPE_WOW and button.id then
+            local name, _, _, _, _, _, noteText = GetFriendInfo(button.id)
             if name then
                 local data = self:GetDataForName(name)
                 local baseName = self:NormalizePlayerName(name) or name
 
+                if noteText and noteText ~= "" then
+                    baseName = baseName .. " |cff808080(" .. noteText .. ")|r"
+                end
+
                 if data then
-                    button.name:SetText(baseName .. " |cff808080-|r " .. self:GetColoredClassText(data))
+                    nameFontString:SetText(baseName .. " |cff808080-|r " .. self:GetColoredClassText(data))
                 else
-                    button.name:SetText(baseName)
+                    nameFontString:SetText(baseName)
                 end
             end
         end
@@ -218,10 +452,16 @@ function ClassForge:CreateTargetProfile()
         return
     end
 
-    local frame = CreateFrame("Frame", "ClassForgeTargetProfile", UIParent)
+    if not TargetFrame then
+        return
+    end
+
+    local frame = CreateFrame("Frame", "ClassForgeTargetProfile", TargetFrame)
     frame:SetWidth(200)
     frame:SetHeight(74)
-    frame:SetPoint("TOPLEFT", TargetFrame, "TOPRIGHT", 8, -12)
+    frame:SetFrameStrata(TargetFrame:GetFrameStrata())
+    frame:SetFrameLevel(TargetFrame:GetFrameLevel() + 5)
+    frame:SetClampedToScreen(true)
     frame:SetBackdrop({
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
         edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -232,6 +472,18 @@ function ClassForge:CreateTargetProfile()
     })
     frame:SetBackdropColor(0, 0, 0, 0.85)
     frame:Hide()
+    frame:EnableMouse(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetMovable(true)
+    frame:SetScript("OnDragStart", function(selfFrame)
+        if IsShiftKeyDown() then
+            selfFrame:StartMoving()
+        end
+    end)
+    frame:SetScript("OnDragStop", function(selfFrame)
+        selfFrame:StopMovingOrSizing()
+        ClassForge:SaveTargetProfilePosition()
+    end)
 
     frame.classText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     frame.classText:SetPoint("TOPLEFT", 10, -10)
@@ -245,7 +497,12 @@ function ClassForge:CreateTargetProfile()
     frame.orderText:SetPoint("TOPLEFT", frame.roleText, "BOTTOMLEFT", 0, -6)
     frame.orderText:SetJustifyH("LEFT")
 
+    frame.hintText = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    frame.hintText:SetPoint("BOTTOMRIGHT", -8, 8)
+    frame.hintText:SetText("Shift-drag")
+
     self.targetProfile = frame
+    self:ApplyTargetProfilePosition()
 end
 
 function ClassForge:UpdateTargetProfile()
