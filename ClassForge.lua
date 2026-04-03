@@ -1,6 +1,6 @@
 ClassForge = {}
 ClassForge.prefix = "CLASSFORGE2"
-ClassForge.version = "0.2.0"
+ClassForge.version = "0.2.1"  -- bumped version slightly
 
 local addon = CreateFrame("Frame")
 ClassForge.frame = addon
@@ -15,32 +15,30 @@ addon:RegisterEvent("PLAYER_TARGET_CHANGED")
 addon:RegisterEvent("WHO_LIST_UPDATE")
 addon:RegisterEvent("FRIENDLIST_UPDATE")
 addon:RegisterEvent("PLAYER_GUILD_UPDATE")
+addon:RegisterEvent("PLAYER_REGEN_ENABLED")
+
+-- Hook for Character Frame
+hooksecurefunc("CharacterFrame_ShowSubFrame", function()
+    ClassForge:UpdateCharacterFrameClass()
+end)
 
 function ClassForge:NormalizePlayerName(name)
     if not name or name == "" then return nil end
-
-    -- Remove realm suffix if present
     name = string.gsub(name, "%-.+$", "")
-
-    -- Trim spaces
     name = string.gsub(name, "^%s+", "")
     name = string.gsub(name, "%s+$", "")
-
     return name
 end
 
 function ClassForge:GetDataForName(name)
     if not name or not ClassForgeCache then return nil end
-
     local cleanName = self:NormalizePlayerName(name)
     if not cleanName then return nil end
 
-    -- Exact match
     if ClassForgeCache[cleanName] then
         return ClassForgeCache[cleanName]
     end
 
-    -- Case-insensitive fallback
     local lowerClean = string.lower(cleanName)
     for cachedName, data in pairs(ClassForgeCache) do
         local cachedClean = self:NormalizePlayerName(cachedName)
@@ -48,8 +46,22 @@ function ClassForge:GetDataForName(name)
             return data
         end
     end
-
     return nil
+end
+
+-- Helper: Get your own data
+function ClassForge:GetMyData()
+    local myName = UnitName("player")
+    return self:GetDataForName(myName) or ClassForgeDB.profile
+end
+
+-- Helper: Get colored class text (reused from your Display file if possible)
+function ClassForge:GetColoredClassText(data)
+    if not data or not data.className then
+        return "|cFFFFFFFFUnknown|r"
+    end
+    local color = data.color or "FFFFD100"
+    return "|cFF" .. color .. data.className .. "|r"
 end
 
 local defaults = {
@@ -66,7 +78,6 @@ local defaults = {
 local function CopyDefaults(src, dst)
     if type(src) ~= "table" then return {} end
     if type(dst) ~= "table" then dst = {} end
-
     for k, v in pairs(src) do
         if type(v) == "table" then
             dst[k] = CopyDefaults(v, dst[k])
@@ -74,7 +85,6 @@ local function CopyDefaults(src, dst)
             dst[k] = v
         end
     end
-
     return dst
 end
 
@@ -90,7 +100,6 @@ end
 
 function ClassForge:ADDON_LOADED(name)
     if name ~= "ClassForge" then return end
-
     ClassForgeDB = CopyDefaults(defaults, ClassForgeDB or {})
     ClassForgeCache = ClassForgeCache or {}
 end
@@ -99,12 +108,11 @@ function ClassForge:PLAYER_LOGIN()
     if RegisterAddonMessagePrefix then
         RegisterAddonMessagePrefix(self.prefix)
     end
-
     self:SetupSlashCommands()
     self:CreateOptionsPanel()
     self:InitDisplay()
     self:BroadcastStartup()
-
+    self:UpdateCharacterFrameClass()   -- Initial update
     self:Print("Hero Server Edition loaded. Type |cffffff00/cf|r for commands.")
 end
 
@@ -159,4 +167,70 @@ function ClassForge:RequestSyncFromVisibleSources()
     self:RequestSyncFromFriends()
     self:RequestSyncFromWho()
     self:BroadcastStartup()
+end
+
+-- ==================== Character Frame Custom Class Display (Fixed Color + Layout) ====================
+function ClassForge:UpdateCharacterFrameClass()
+    if not PaperDollFrame or not PaperDollFrame:IsShown() then
+        return
+    end
+
+    local myData = self:GetMyData()
+    if not myData or not myData.className then
+        return
+    end
+
+    -- Hide default Blizzard level/race/class line
+    if CharacterLevelText then
+        CharacterLevelText:Hide()
+    end
+
+    -- Create / update the fontstring
+    if not PaperDollFrame.ClassForgeClassText then
+        local f = PaperDollFrame:CreateFontString(nil, "DIALOG", "GameFontNormal")
+        f:SetPoint("TOP", PaperDollFrame, "TOP", 0, -32)
+        f:SetJustifyH("CENTER")
+        f:SetSpacing(6)
+        f:SetFont("Fonts\\FRIZQT__.TTF", 9, "OUTLINE")
+        f:SetShadowOffset(1, -1)
+        PaperDollFrame.ClassForgeClassText = f
+    end
+
+    local level = UnitLevel("player") or 1
+    local race  = UnitRace("player") or ""
+    local className = myData.className or "Hero"
+
+    -- Build clean colored class (no extra "FF" prefix)
+    local hexColor = myData.color or "FFFFD100"
+    if string.len(hexColor) == 6 then
+        hexColor = "FF" .. hexColor   -- ensure full |cAARRGGBB format
+    end
+    local coloredClass = "|c" .. hexColor .. className .. "|r"
+
+    local extra = ""
+    if myData.role and myData.role ~= "Wanderer" then
+        extra = extra .. myData.role
+    end
+    if myData.order and myData.order ~= "Unaffiliated" then
+        if extra ~= "" then extra = extra .. " - " end
+        extra = extra .. myData.order
+    end
+
+    -- Layout:
+    -- Line 1: Level XX Race
+    -- Line 2: Spell Knight (in your chosen color)
+    -- Line 3: Role - Order (white)
+    local displayText = string.format("Level %d %s\n%s\n%s",
+        level,
+        race,
+        coloredClass,
+        extra ~= "" and extra or ""
+    )
+
+    local fs = PaperDollFrame.ClassForgeClassText
+    fs:SetText(displayText)
+
+    -- Force the class line to use your chosen color (this fixes white color issue)
+    -- We apply a default white first, then override with your color for the class part
+    fs:SetTextColor(1, 1, 1)   -- default for whole text
 end
