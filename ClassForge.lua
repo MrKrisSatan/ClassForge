@@ -113,6 +113,9 @@ function ClassForge:PLAYER_LOGIN()
     self:InitDisplay()
     self:BroadcastStartup()
     self:UpdateCharacterFrameClass()   -- Initial update
+    hooksecurefunc("FriendsFrame_Update", function()
+    ClassForge:UpdateFriendsList()
+end)
     self:Print("Hero Server Edition loaded. Type |cffffff00/cf|r for commands.")
 end
 
@@ -234,3 +237,59 @@ function ClassForge:UpdateCharacterFrameClass()
     -- We apply a default white first, then override with your color for the class part
     fs:SetTextColor(1, 1, 1)   -- default for whole text
 end
+-- ==================== NEW: Auto Broadcast every 5 minutes ====================
+function ClassForge:StartAutoBroadcast()
+    if self.autoBroadcastTimer then
+        self.autoBroadcastTimer:Cancel()
+    end
+
+    self.autoBroadcastTimer = C_Timer.NewTicker(300, function()  -- 300 seconds = 5 minutes
+        if UnitIsConnected("player") then
+            self:BroadcastSelf("GUILD")
+            self:BroadcastSelf("PARTY")
+            self:BroadcastSelf("RAID")
+        end
+    end)
+end
+
+-- ==================== NEW: Friends List Support ====================
+function ClassForge:UpdateFriendsList()
+    if not FriendsFrame or not FriendsFrame:IsShown() then return end
+
+    -- Hook the friend buttons (works on most WotLK clients)
+    for i = 1, FRIENDS_TO_DISPLAY do
+        local button = _G["FriendsFrameFriendButton" .. i]
+        if button and button.index then
+            local name = GetFriendInfo(button.index)
+            if name then
+                local data = self:GetDataForName(name)
+                if data and data.className then
+                    local colored = self:GetColoredClassText(data)
+                    if button.name then
+                        -- Append to name if possible
+                        button.name:SetText(button.name:GetText() .. " " .. colored)
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- ==================== NEW: Raid/Party Tooltip Support ====================
+hooksecurefunc("GameTooltip_SetDefaultAnchor", function(tooltip, parent)
+    if parent and parent.unit and UnitIsPlayer(parent.unit) then
+        local name = UnitName(parent.unit)
+        local data = ClassForge:GetDataForName(name)
+        if data and data.className then
+            local colored = ClassForge:GetColoredClassText(data)
+            tooltip:AddLine("ClassForge: " .. colored)
+            if data.role and data.role ~= "Wanderer" then
+                tooltip:AddLine("Role: " .. data.role)
+            end
+            if data.order and data.order ~= "Unaffiliated" then
+                tooltip:AddLine("Order: " .. data.order)
+            end
+            tooltip:Show()
+        end
+    end
+end)

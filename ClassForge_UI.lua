@@ -214,9 +214,9 @@ function ClassForge:GetColoredClassText(data)
     if not data or not data.className then
         return "|cFFFFFFFFUnknown|r"
     end
-    local hex = data.color or "FF0000"
+    local hex = data.color or "FFFFD100"
     if #hex == 6 then
-        hex = "FF" .. hex   -- ensure full 8-char code
+        hex = "FF" .. hex
     end
     return "|c" .. hex .. data.className .. "|r"
 end
