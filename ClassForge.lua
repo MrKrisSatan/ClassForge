@@ -252,14 +252,12 @@ function ClassForge:StartAutoBroadcast()
     end)
 end
 
--- ==================== IMPROVED: Friends List Custom Class Display (WotLK 3.3.5) ====================
+-- ==================== STRONGER: Friends List Custom Class Display (WotLK 3.3.5) ====================
 function ClassForge:UpdateFriendsList()
     if not FriendsFrame or not FriendsFrame:IsShown() then 
         return 
     end
-
-    -- Only update when on the Friends tab
-    if FriendsFrame.selectedTab ~= 1 then return end
+    if FriendsFrame.selectedTab ~= 1 then return end   -- Only on Friends tab
 
     for i = 1, FRIENDS_TO_DISPLAY do
         local button = _G["FriendsFrameFriendButton" .. i]
@@ -271,9 +269,9 @@ function ClassForge:UpdateFriendsList()
                     local coloredClass = self:GetColoredClassText(data)
                     
                     local currentText = button.name:GetText() or name
-                    -- Avoid duplicating the class if it's already there
+                    -- Prevent duplicate entries
                     if not currentText:find(data.className, 1, true) then
-                        button.name:SetText(currentText .. "  " .. coloredClass)
+                        button.name:SetText(currentText .. "   " .. coloredClass)
                     end
                 end
             end
@@ -281,27 +279,48 @@ function ClassForge:UpdateFriendsList()
     end
 end
 
--- Stronger hooks for Friends list
+-- Very aggressive hooking + timer for stubborn WotLK private server frames
 hooksecurefunc("FriendsFrame_Update", function()
-    C_Timer.After(0.05, function() ClassForge:UpdateFriendsList() end)
+    C_Timer.After(0.1, function() ClassForge:UpdateFriendsList() end)
 end)
 
 hooksecurefunc("FriendsList_Update", function()
-    C_Timer.After(0.05, function() ClassForge:UpdateFriendsList() end)
+    C_Timer.After(0.1, function() ClassForge:UpdateFriendsList() end)
 end)
 
--- Update when switching tabs or opening Friends frame
-FriendsFrame:HookScript("OnShow", function()
-    C_Timer.After(0.2, function() ClassForge:UpdateFriendsList() end)
-end)
-
--- Also update when the friend list scrolls or refreshes
-if FriendsFrameFriendsScrollFrame then
-    hooksecurefunc(FriendsFrameFriendsScrollFrame, "Update", function()
-        C_Timer.After(0.05, function() ClassForge:UpdateFriendsList() end)
+-- Update when opening Friends frame
+if FriendsFrame then
+    FriendsFrame:HookScript("OnShow", function()
+        C_Timer.After(0.3, function() ClassForge:UpdateFriendsList() end)
     end)
 end
 
+-- Timer that keeps updating while Friends frame is open (helps with scroll / refresh issues)
+local friendsUpdateTicker = nil
+local function StartFriendsUpdateTicker()
+    if friendsUpdateTicker then friendsUpdateTicker:Cancel() end
+    friendsUpdateTicker = C_Timer.NewTicker(0.5, function()
+        if FriendsFrame and FriendsFrame:IsShown() and FriendsFrame.selectedTab == 1 then
+            ClassForge:UpdateFriendsList()
+        else
+            if friendsUpdateTicker then 
+                friendsUpdateTicker:Cancel() 
+                friendsUpdateTicker = nil 
+            end
+        end
+    end)
+end
+
+-- Start the ticker when Friends frame shows
+if FriendsFrame then
+    FriendsFrame:HookScript("OnShow", StartFriendsUpdateTicker)
+    FriendsFrame:HookScript("OnHide", function()
+        if friendsUpdateTicker then 
+            friendsUpdateTicker:Cancel() 
+            friendsUpdateTicker = nil 
+        end
+    end)
+end
 -- ==================== FIXED: Who List (prevents reverting to "Hero") ====================
 function ClassForge:UpdateWhoList()
     if not WhoFrame or not WhoFrame:IsShown() then return end
