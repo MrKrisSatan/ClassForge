@@ -1,8 +1,8 @@
 ## Interface: 30300
 ## Title: ClassForge
-## Notes: Custom class names and colours shared between addon users
+## Notes: WotLK 3.3.5a custom class identities shared between addon users
 ## Author: MrKrisSatan + ChatGPT
-## Version: 0.1.0
+## Version: 1.0.0
 ## SavedVariables: ClassForgeDB, ClassForgeCache
 
 ClassForge.lua

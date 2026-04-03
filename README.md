@@ -1,19 +1,21 @@
-Example setup
-<br>
-/cf setclass Blood Knight
-<br>
-/cf setshort BK
-<br>
-/cf setcolor FF0033
-<br>
-/cf setrole Frontline Juggernaut
-<br>
-/cf setorder Crimson Oath
-<br>
-/cf show
-<br>
-/cf sync
+ClassForge for Wrath of the Lich King 3.3.5a
 
-![guild](https://github.com/user-attachments/assets/d97ddce7-dd8f-4dfc-8596-5be417f50ab7)
-![who](https://github.com/user-attachments/assets/a9d5b1b4-83e3-4464-8a90-d27a42237078)
-![info](https://github.com/user-attachments/assets/247f48fd-5191-4031-a61f-f78807c4fec2)
+Core commands:
+
+`/cf help`
+`/cf setclass <name>`
+`/cf setcolor <hex>`
+`/cf setrole <Heal|Tank|DPS>`
+`/cf setorder <order>`
+`/cf show`
+`/cf sync`
+`/cf reset`
+`/cf options`
+
+What it does:
+
+- Saves your custom class name, class colour, role, and order in SavedVariables.
+- Shares your profile with other addon users through `SendAddonMessage`.
+- Caches received player data by normalized player name.
+- Displays custom class data in tooltips, `/who`, guild roster, friends list, character panel, target tag, inspect panel, and a target-side profile box.
+- `/cf sync` refreshes your own cache entry, runs a `/who` sync pass, seeds placeholder records for new results, and requests addon data from visible players.

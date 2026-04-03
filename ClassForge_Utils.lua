@@ -1,114 +1,218 @@
-function ClassForge:GetPlayerKey(name)
-    return string.lower(name or "unknown")
+function ClassForge:CopyDefaults(source, destination)
+    if type(source) ~= "table" then
+        return destination
+    end
+
+    if type(destination) ~= "table" then
+        destination = {}
+    end
+
+    for key, value in pairs(source) do
+        if type(value) == "table" then
+            destination[key] = self:CopyDefaults(value, destination[key])
+        elseif destination[key] == nil then
+            destination[key] = value
+        end
+    end
+
+    return destination
 end
 
-function ClassForge:UnitFullName(unit)
-    if not UnitExists(unit) then return nil end
-    local name = UnitName(unit)
-    return name
+function ClassForge:Trim(value)
+    if not value then
+        return ""
+    end
+
+    return (tostring(value):gsub("^%s*(.-)%s*$", "%1"))
+end
+
+function ClassForge:NormalizePlayerName(name)
+    name = self:Trim(name)
+    if name == "" then
+        return nil
+    end
+
+    name = name:gsub("%-.+$", "")
+    if name == "" then
+        return nil
+    end
+
+    return name:sub(1, 1):upper() .. name:sub(2):lower()
+end
+
+function ClassForge:GetPlayerKey(name)
+    local normalized = self:NormalizePlayerName(name)
+    if not normalized then
+        return nil
+    end
+
+    return string.lower(normalized)
+end
+
+function ClassForge:SanitizeHex(hex)
+    hex = self:Trim(hex):upper():gsub("#", ""):gsub("^0X", "")
+    if hex == "" then
+        return nil
+    end
+
+    if hex:match("^%x%x%x$") then
+        return hex:sub(1, 1) .. hex:sub(1, 1) .. hex:sub(2, 2) .. hex:sub(2, 2) .. hex:sub(3, 3) .. hex:sub(3, 3)
+    end
+
+    if hex:match("^%x%x%x%x%x%x$") then
+        return hex
+    end
+
+    if hex:match("^%x%x%x%x%x%x%x%x$") then
+        return hex:sub(3)
+    end
+
+    return nil
+end
+
+function ClassForge:NormalizeRole(role)
+    role = self:Trim(role)
+    if role == "" then
+        return nil
+    end
+
+    local lower = string.lower(role)
+    if lower == "heal" or lower == "healer" then
+        return "Heal"
+    end
+    if lower == "tank" then
+        return "Tank"
+    end
+    if lower == "dps" or lower == "damage" then
+        return "DPS"
+    end
+
+    return nil
 end
 
 function ClassForge:HexToRGB(hex)
-    if not hex then return 1, 1, 1 end
-    hex = hex:gsub("#", "")
-    if string.len(hex) == 8 then
-        hex = string.sub(hex, 3)
-    end
-
-    local r = tonumber(string.sub(hex, 1, 2), 16) or 255
-    local g = tonumber(string.sub(hex, 3, 4), 16) or 255
-    local b = tonumber(string.sub(hex, 5, 6), 16) or 255
+    local clean = self:SanitizeHex(hex) or "FFFFFF"
+    local r = tonumber(clean:sub(1, 2), 16) or 255
+    local g = tonumber(clean:sub(3, 4), 16) or 255
+    local b = tonumber(clean:sub(5, 6), 16) or 255
 
     return r / 255, g / 255, b / 255
 end
 
-function ClassForge:SanitizeHex(hex)
-    if not hex then return nil end
-    hex = hex:gsub("#", "")
-    hex = string.upper(hex)
-
-    if string.len(hex) == 6 and hex:match("^[0-9A-F]+$") then
-        return "FF" .. hex
-    elseif string.len(hex) == 8 and hex:match("^[0-9A-F]+$") then
-        return hex
+function ClassForge:GetColoredClassText(data)
+    if not data or not data.className then
+        return "|cffffffffUnknown|r"
     end
 
-    return nil
-end
-
-function ClassForge:Trim(str)
-    if not str then return "" end
-    return (str:gsub("^%s*(.-)%s*$", "%1"))
-end
-
-function ClassForge:GetMyData()
-    return {
-        className = ClassForgeDB.profile.className or "Hero",
-        shortName = ClassForgeDB.profile.shortName or "HERO",
-        color = ClassForgeDB.profile.color or "FFFFD100",
-        role = ClassForgeDB.profile.role or "Wanderer",
-        order = ClassForgeDB.profile.order or "Unaffiliated",
-        updated = time(),
-    }
-end
-
-function ClassForge:SetDataForName(name, data)
-    if not name then return end
-    local key = self:GetPlayerKey(name)
-    ClassForgeCache[key] = {
-        className = data.className or "Hero",
-        shortName = data.shortName or "HERO",
-        color = data.color or "FFFFD100",
-        role = data.role or "Wanderer",
-        order = data.order or "Unaffiliated",
-        updated = data.updated or time(),
-    }
+    return string.format("|cff%s%s|r", self:SanitizeHex(data.color) or "FFFFFF", data.className)
 end
 
 function ClassForge:GetDataForName(name)
-    if not name or not ClassForgeCache then return nil end
-
-    -- Exact match
-    if ClassForgeCache[name] then
-        return ClassForgeCache[name]
+    local key = self:GetPlayerKey(name)
+    if not key or not ClassForgeCache then
+        return nil
     end
 
-    -- Strip realm if present
-    local shortName = name:gsub("%-.+$", "")
-    if ClassForgeCache[shortName] then
-        return ClassForgeCache[shortName]
+    return ClassForgeCache[key]
+end
+
+function ClassForge:GetDataForUnit(unit)
+    if not UnitExists(unit) or not UnitIsPlayer(unit) then
+        return nil
     end
 
-    -- Lowercase exact
+    if UnitIsUnit(unit, "player") then
+        return self:BuildProfileData()
+    end
+
+    return self:GetDataForName(UnitName(unit))
+end
+
+function ClassForge:SetDataForName(name, data)
+    local key = self:GetPlayerKey(name)
+    local normalized = self:NormalizePlayerName(name)
+    if not key or not normalized or not data then
+        return nil
+    end
+
+    local existing = ClassForgeCache[key] or {}
+    local incomingUpdated = tonumber(data.updated) or time()
+    local existingUpdated = tonumber(existing.updated) or 0
+
+    if existing.source == "addon" and data.source ~= "addon" and existingUpdated > incomingUpdated then
+        return existing
+    end
+
+    ClassForgeCache[key] = {
+        name = normalized,
+        className = self:Trim(data.className) ~= "" and self:Trim(data.className) or existing.className or self.defaults.profile.className,
+        color = self:SanitizeHex(data.color) or existing.color or self.defaults.profile.color,
+        role = self:NormalizeRole(data.role) or existing.role or self.defaults.profile.role,
+        order = self:Trim(data.order) ~= "" and self:Trim(data.order) or (data.source == "addon" and "" or existing.order or ""),
+        updated = incomingUpdated,
+        source = data.source or "observed",
+    }
+
+    return ClassForgeCache[key]
+end
+
+function ClassForge:GuessClassToken(className)
+    local name = self:Trim(className)
+    if name == "" then
+        return nil
+    end
+
+    if RAID_CLASS_COLORS[name] then
+        return name
+    end
+
     local lowerName = string.lower(name)
-    for cachedName, data in pairs(ClassForgeCache) do
-        if string.lower(cachedName) == lowerName then
-            return data
+
+    if LOCALIZED_CLASS_NAMES_MALE then
+        for token, localized in pairs(LOCALIZED_CLASS_NAMES_MALE) do
+            if string.lower(localized) == lowerName then
+                return token
+            end
         end
     end
 
-    -- Lowercase stripped realm
-    local lowerShort = string.lower(shortName)
-    for cachedName, data in pairs(ClassForgeCache) do
-        local cachedShort = cachedName:gsub("%-.+$", "")
-        if string.lower(cachedShort) == lowerShort then
-            return data
+    if LOCALIZED_CLASS_NAMES_FEMALE then
+        for token, localized in pairs(LOCALIZED_CLASS_NAMES_FEMALE) do
+            if string.lower(localized) == lowerName then
+                return token
+            end
         end
     end
 
     return nil
 end
 
-function ClassForge:GetColoredClassText(data)
-    if not data then return nil end
-    local color = data.color or "FFFFFFFF"
-    local className = data.className or "Hero"
-    return string.format("|cff%s%s|r", string.sub(color, 3), className)
+function ClassForge:GuessRoleFromClass(className)
+    local token = self:GuessClassToken(className)
+
+    local fallbackByToken = {
+        DEATHKNIGHT = "Tank",
+        DRUID = "Tank",
+        HUNTER = "DPS",
+        MAGE = "DPS",
+        PALADIN = "Tank",
+        PRIEST = "Heal",
+        ROGUE = "DPS",
+        SHAMAN = "Heal",
+        WARLOCK = "DPS",
+        WARRIOR = "Tank",
+    }
+
+    return fallbackByToken[token] or "DPS"
 end
 
-function ClassForge:GetColoredShortText(data)
-    if not data then return nil end
-    local color = data.color or "FFFFFFFF"
-    local shortName = data.shortName or "HERO"
-    return string.format("|cff%s[%s]|r", string.sub(color, 3), shortName)
+function ClassForge:GuessColorFromClass(className)
+    local token = self:GuessClassToken(className)
+    local color = token and RAID_CLASS_COLORS[token] or nil
+
+    if color then
+        return string.format("%02X%02X%02X", color.r * 255, color.g * 255, color.b * 255)
+    end
+
+    return self.defaults.profile.color
 end

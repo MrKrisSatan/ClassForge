@@ -1,231 +1,240 @@
+local function createEditBox(parent, width, height, labelText, x, y)
+    local label = parent:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    label:SetPoint("TOPLEFT", x, y)
+    label:SetText(labelText)
+
+    local box = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
+    box:SetAutoFocus(false)
+    box:SetWidth(width)
+    box:SetHeight(height)
+    box:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -6)
+
+    return box
+end
+
 function ClassForge:SetupSlashCommands()
-    SLASH_CLASSFORGE1 = "/classforge"
-    SLASH_CLASSFORGE2 = "/cf"
-    SlashCmdList["CLASSFORGE"] = function(msg)
-        ClassForge:HandleSlash(msg)
+    SLASH_CLASSFORGE1 = "/cf"
+    SLASH_CLASSFORGE2 = "/classforge"
+
+    SlashCmdList.CLASSFORGE = function(message)
+        ClassForge:HandleSlash(message)
     end
 end
 
-function ClassForge:HandleSlash(msg)
-    msg = self:Trim(msg or "")
-    local cmd, rest = msg:match("^(%S*)%s*(.-)$")
-    cmd = string.lower(cmd or "")
-    if cmd == "" or cmd == "help" then
+function ClassForge:HandleSlash(message)
+    local trimmed = self:Trim(message)
+    local command, rest = trimmed:match("^(%S*)%s*(.-)$")
+    command = string.lower(command or "")
+
+    if command == "" or command == "help" then
+        self:Print("/cf help")
         self:Print("/cf setclass <name>")
-        self:Print("/cf setshort <tag>")
-        self:Print("/cf setcolor <RRGGBB>")
+        self:Print("/cf setcolor <hex>")
         self:Print("/cf setrole <role>")
         self:Print("/cf setorder <order>")
         self:Print("/cf show")
         self:Print("/cf sync")
-        self:Print("/cf who")
         self:Print("/cf reset")
         self:Print("/cf options")
-        self:Print("/cf debugguild")
-        self:Print("/cf debugwho")
-        self:Print("/cf debugtarget")
-        self:Print("/cf debugcache")
         return
     end
 
-    if cmd == "setclass" then
+    if command == "setclass" then
         if rest == "" then
-            self:Print("Usage: /cf setclass Spell Knight")
+            self:Print("Usage: /cf setclass <name>")
             return
         end
+
         ClassForgeDB.profile.className = rest
-        self:Print("Class set to: " .. rest)
+        self:RefreshPlayerCache()
         self:BroadcastStartup()
-        self:UpdateTargetClassTag()
-        self:UpdateInspectProfile()
-        self:UpdateCharacterFrameClass()
+        self:RefreshAllDisplays()
+        self:Print("Class set to " .. rest .. ".")
         return
     end
 
-    if cmd == "setshort" then
-        if rest == "" then
-            self:Print("Usage: /cf setshort SK")
-            return
-        end
-        ClassForgeDB.profile.shortName = rest
-        self:Print("Short tag set to: " .. rest)
-        self:BroadcastStartup()
-        return
-    end
-
-    if cmd == "setcolor" then
+    if command == "setcolor" then
         local color = self:SanitizeHex(rest)
         if not color then
-            self:Print("Usage: /cf setcolor FF0033")
+            self:Print("Usage: /cf setcolor <hex>")
             return
         end
+
         ClassForgeDB.profile.color = color
-        self:Print("Colour updated to: #" .. color)
+        self:RefreshPlayerCache()
         self:BroadcastStartup()
-        self:UpdateTargetClassTag()
-        self:UpdateInspectProfile()
-        self:UpdateCharacterFrameClass()
+        self:RefreshAllDisplays()
+        self:Print("Colour set to #" .. color .. ".")
         return
     end
 
-    if cmd == "setrole" then
-        if rest == "" then
-            self:Print("Usage: /cf setrole Frontline Juggernaut")
+    if command == "setrole" then
+        local role = self:NormalizeRole(rest)
+        if not role then
+            self:Print("Role must be Heal, Tank, or DPS.")
             return
         end
-        ClassForgeDB.profile.role = rest
-        self:Print("Role set to: " .. rest)
+
+        ClassForgeDB.profile.role = role
+        self:RefreshPlayerCache()
         self:BroadcastStartup()
-        self:UpdateInspectProfile()
-        self:UpdateCharacterFrameClass()
+        self:RefreshAllDisplays()
+        self:Print("Role set to " .. role .. ".")
         return
     end
 
-    if cmd == "setorder" then
-        if rest == "" then
-            self:Print("Usage: /cf setorder Crimson Oath")
-            return
-        end
-        ClassForgeDB.profile.order = rest
-        self:Print("Order set to: " .. rest)
+    if command == "setorder" then
+        ClassForgeDB.profile.order = self:Trim(rest)
+        self:RefreshPlayerCache()
         self:BroadcastStartup()
-        self:UpdateInspectProfile()
-        self:UpdateCharacterFrameClass()
+        self:RefreshAllDisplays()
+        self:Print("Order updated.")
         return
     end
 
-    if cmd == "show" then
-        local data = self:GetMyData()
+    if command == "show" then
+        local data = self:BuildProfileData()
         self:Print("Class: " .. data.className)
-        self:Print("Short: " .. data.shortName)
-        self:Print("Colour: #" .. (data.color or "FFFFD100"))
+        self:Print("Colour: #" .. data.color)
         self:Print("Role: " .. data.role)
-        self:Print("Order: " .. data.order)
+        self:Print("Order: " .. (data.order ~= "" and data.order or "-"))
         return
     end
 
-    if cmd == "sync" then
+    if command == "sync" then
+        self:RefreshPlayerCache()
         self:BroadcastStartup()
         self:RequestSyncFromFriends()
-        self:RequestSyncFromWho()
-        if UnitExists("target") and UnitIsPlayer("target") then
-            local name = UnitName("target")
-            if name then self:BroadcastSelf("WHISPER", name) end
-        end
-        self:Print("Sync broadcast sent.")
+        self:PerformWhoSync()
+        self:Print("Sync started.")
         return
     end
 
-    if cmd == "who" then
-        self:RequestSyncFromWho()
-        self:UpdateWhoList()
-        self:Print("Requested sync from /who players.")
-        return
-    end
-
-    if cmd == "reset" then
-        ClassForgeDB.profile.className = "Hero"
-        ClassForgeDB.profile.shortName = "HERO"
-        ClassForgeDB.profile.color = "FF0000"   -- red example
-        ClassForgeDB.profile.role = "Wanderer"
-        ClassForgeDB.profile.order = "Unaffiliated"
-        self:Print("Reset to defaults.")
+    if command == "reset" then
+        ClassForgeDB.profile.className = self.defaults.profile.className
+        ClassForgeDB.profile.color = self.defaults.profile.color
+        ClassForgeDB.profile.role = self.defaults.profile.role
+        ClassForgeDB.profile.order = self.defaults.profile.order
+        self:RefreshPlayerCache()
         self:BroadcastStartup()
-        self:UpdateTargetClassTag()
-        self:UpdateInspectProfile()
-        self:UpdateCharacterFrameClass()
+        self:RefreshAllDisplays()
+        self:Print("Profile reset to defaults.")
         return
     end
 
-    if cmd == "options" then
-        InterfaceOptionsFrame_OpenToCategory("ClassForge")
-        InterfaceOptionsFrame_OpenToCategory("ClassForge")
+    if command == "options" then
+        if self.optionsPanel then
+            InterfaceOptionsFrame_OpenToCategory(self.optionsPanel)
+            InterfaceOptionsFrame_OpenToCategory(self.optionsPanel)
+        end
         return
     end
 
-    if cmd == "debugguild" then self:DebugGuildFrames() return end
-    if cmd == "debugwho" then self:DebugWhoFrames() return end
-    if cmd == "debugtarget" then self:DebugTarget() return end
-    if cmd == "debugcache" then self:DebugCache() return end
-
-    self:Print("Unknown command. Type /cf help")
+    self:Print("Unknown command. Type /cf help.")
 end
 
 function ClassForge:CreateOptionsPanel()
-    -- ... (your existing panel creation code stays exactly the same until the save button)
+    if self.optionsPanel then
+        return
+    end
 
-    local saveBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    saveBtn:SetSize(120, 30)
-    saveBtn:SetPoint("TOPLEFT", preview, "BOTTOMLEFT", 0, -20)
-    saveBtn:SetText("Save")
-    saveBtn:SetScript("OnClick", function()
-        ClassForgeDB.profile.className = ClassForge:Trim(classBox:GetText())
-        if ClassForgeDB.profile.className == "" then ClassForgeDB.profile.className = "Hero" end
+    local panel = CreateFrame("Frame", "ClassForgeOptionsPanel", InterfaceOptionsFramePanelContainer)
+    panel.name = "ClassForge"
 
-        ClassForgeDB.profile.shortName = ClassForge:Trim(shortBox:GetText())
-        if ClassForgeDB.profile.shortName == "" then ClassForgeDB.profile.shortName = "HERO" end
+    local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+    title:SetPoint("TOPLEFT", 16, -16)
+    title:SetText("ClassForge")
 
-        ClassForgeDB.profile.color = ClassForge:SanitizeHex(colorBox:GetText()) or "FF0000"
+    local subtitle = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
+    subtitle:SetText("Define a custom class identity and share it with other ClassForge users.")
 
-        ClassForgeDB.profile.role = ClassForge:Trim(roleBox:GetText())
-        if ClassForgeDB.profile.role == "" then ClassForgeDB.profile.role = "Wanderer" end
+    local classBox = createEditBox(panel, 220, 30, "Custom class name", 16, -60)
+    local colorBox = createEditBox(panel, 220, 30, "Class colour hex", 16, -122)
+    local roleBox = createEditBox(panel, 220, 30, "Role (Heal/Tank/DPS)", 16, -184)
+    local orderBox = createEditBox(panel, 220, 30, "Order", 16, -246)
 
+    local preview = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    preview:SetPoint("TOPLEFT", 280, -88)
+    preview:SetWidth(260)
+    preview:SetJustifyH("LEFT")
+
+    local function updatePreview()
+        local role = ClassForge:NormalizeRole(roleBox:GetText()) or ClassForge.defaults.profile.role
+        local data = {
+            className = ClassForge:Trim(classBox:GetText()) ~= "" and ClassForge:Trim(classBox:GetText()) or ClassForge.defaults.profile.className,
+            color = ClassForge:SanitizeHex(colorBox:GetText()) or ClassForge.defaults.profile.color,
+            role = role,
+            order = ClassForge:Trim(orderBox:GetText()),
+        }
+
+        local orderText = data.order ~= "" and ("\nOrder: " .. data.order) or ""
+        preview:SetText("Preview\n" .. ClassForge:GetColoredClassText(data) .. "\nRole: " .. data.role .. orderText)
+    end
+
+    local saveButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    saveButton:SetWidth(100)
+    saveButton:SetHeight(24)
+    saveButton:SetPoint("TOPLEFT", orderBox, "BOTTOMLEFT", 0, -16)
+    saveButton:SetText("Save")
+    saveButton:SetScript("OnClick", function()
+        local className = ClassForge:Trim(classBox:GetText())
+        local color = ClassForge:SanitizeHex(colorBox:GetText())
+        local role = ClassForge:NormalizeRole(roleBox:GetText())
+
+        if className == "" then
+            className = ClassForge.defaults.profile.className
+        end
+        if not color then
+            color = ClassForge.defaults.profile.color
+        end
+        if not role then
+            role = ClassForge.defaults.profile.role
+        end
+
+        ClassForgeDB.profile.className = className
+        ClassForgeDB.profile.color = color
+        ClassForgeDB.profile.role = role
         ClassForgeDB.profile.order = ClassForge:Trim(orderBox:GetText())
-        if ClassForgeDB.profile.order == "" then ClassForgeDB.profile.order = "Unaffiliated" end
 
-        ClassForge:Print("Saved Hero profile.")
+        ClassForge:RefreshPlayerCache()
         ClassForge:BroadcastStartup()
-        ClassForge:UpdateTargetClassTag()
-        ClassForge:UpdateInspectProfile()
-        ClassForge:UpdateWhoList()
-        ClassForge:UpdateGuildRoster()
-        ClassForge:UpdateCharacterFrameClass()
-        UpdatePreview()
+        ClassForge:RefreshAllDisplays()
+        updatePreview()
+        ClassForge:Print("Profile saved.")
+    end)
+
+    local syncButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    syncButton:SetWidth(100)
+    syncButton:SetHeight(24)
+    syncButton:SetPoint("LEFT", saveButton, "RIGHT", 8, 0)
+    syncButton:SetText("Sync")
+    syncButton:SetScript("OnClick", function()
+        ClassForge:HandleSlash("sync")
+    end)
+
+    local resetButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    resetButton:SetWidth(100)
+    resetButton:SetHeight(24)
+    resetButton:SetPoint("LEFT", syncButton, "RIGHT", 8, 0)
+    resetButton:SetText("Reset")
+    resetButton:SetScript("OnClick", function()
+        classBox:SetText(ClassForge.defaults.profile.className)
+        colorBox:SetText(ClassForge.defaults.profile.color)
+        roleBox:SetText(ClassForge.defaults.profile.role)
+        orderBox:SetText(ClassForge.defaults.profile.order)
+        updatePreview()
+    end)
+
+    panel:SetScript("OnShow", function()
+        local profile = ClassForge:GetProfile()
+        classBox:SetText(profile.className or ClassForge.defaults.profile.className)
+        colorBox:SetText(profile.color or ClassForge.defaults.profile.color)
+        roleBox:SetText(profile.role or ClassForge.defaults.profile.role)
+        orderBox:SetText(profile.order or "")
+        updatePreview()
     end)
 
     InterfaceOptions_AddCategory(panel)
-end
-
--- ==================== IMPROVED HELPER FUNCTIONS ====================
-
-function ClassForge:Trim(str)
-    if not str then return "" end
-    return str:match("^%s*(.-)%s*$") or ""
-end
-
-function ClassForge:SanitizeHex(hex)
-    if not hex then return "FF0000" end
-    hex = hex:upper():gsub("#", ""):gsub("0X", "")
-    if hex:match("^%x%x%x%x%x%x$") then
-        return hex
-    elseif hex:match("^%x%x%x$") then
-        return hex:sub(1,1)..hex:sub(1,1)..hex:sub(2,2)..hex:sub(2,2)..hex:sub(3,3)..hex:sub(3,3)
-    end
-    return "FF0000"  -- fallback red
-end
-
-function ClassForge:GetMyData()
-    local myName = UnitName("player")
-    return self:GetDataForName(myName) or ClassForgeDB.profile
-end
-
--- Fixed: Always returns clean |cAARRGGBB text (no extra FF)
-function ClassForge:GetColoredClassText(data)
-    if not data or not data.className then
-        return "|cFFFFFFFFUnknown|r"
-    end
-    local hex = data.color or "FFFFD100"
-    if #hex == 6 then
-        hex = "FF" .. hex
-    end
-    return "|c" .. hex .. data.className .. "|r"
-end
-
-function ClassForge:GetColoredShortText(data)
-    if not data or not data.shortName then
-        return "|cFFAAAAAA[??]|r"
-    end
-    local hex = data.color or "FF0000"
-    if #hex == 6 then hex = "FF" .. hex end
-    return "|c" .. hex .. "[" .. data.shortName .. "]|r"
+    self.optionsPanel = panel
 end
