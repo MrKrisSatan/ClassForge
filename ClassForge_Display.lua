@@ -4,10 +4,385 @@ function ClassForge:InitDisplay()
     self:HookWhoFrame()
     self:HookGuildFrame()
     self:HookFriendsFrame()
+    self:SetupMapMarkerTooltips()
+    self:CreateMinimapButton()
     self:CreateCharacterPanel()
     self:CreateTargetClassTag()
     self:CreateTargetProfile()
     self:SetupInspectHooks()
+    self:SetupMapColorHooks()
+    self:SetupChatDecorators()
+end
+
+function ClassForge:IsChatDecorationEnabled()
+    local profile = self:GetProfile()
+    local chat = profile and profile.chat or nil
+
+    if chat and chat.enabled ~= nil then
+        return chat.enabled and true or false
+    end
+
+    return self.defaults.profile.chat.enabled and true or false
+end
+
+function ClassForge:SetChatDecorationEnabled(enabled)
+    ClassForgeDB.profile.chat = ClassForgeDB.profile.chat or {}
+    ClassForgeDB.profile.chat.enabled = enabled and true or false
+end
+
+function ClassForge:DecorateChatMessage(_, message, sender, ...)
+    if not ClassForge:IsChatDecorationEnabled() or not sender or not message then
+        return false, message, sender, ...
+    end
+
+    local data = ClassForge:GetDataForName(sender)
+    if not ClassForge:IsConfirmedAddonUser(data) then
+        return false, message, sender, ...
+    end
+
+    if string.find(message, "|Hplayer:") and string.find(message, "%[|cff") then
+        return false, message, sender, ...
+    end
+
+    local prefix = "[" .. ClassForge:GetColoredClassText(data) .. "] "
+    return false, prefix .. message, sender, ...
+end
+
+function ClassForge:SetupChatDecorators()
+    if self.chatDecoratorsHooked or not ChatFrame_AddMessageEventFilter then
+        return
+    end
+
+    self.chatDecoratorsHooked = true
+
+    local events = {
+        "CHAT_MSG_PARTY",
+        "CHAT_MSG_PARTY_LEADER",
+        "CHAT_MSG_RAID",
+        "CHAT_MSG_RAID_LEADER",
+        "CHAT_MSG_GUILD",
+        "CHAT_MSG_OFFICER",
+        "CHAT_MSG_WHISPER",
+    }
+
+    for _, eventName in ipairs(events) do
+        ChatFrame_AddMessageEventFilter(eventName, function(...)
+            return ClassForge:DecorateChatMessage(...)
+        end)
+    end
+end
+
+function ClassForge:GetDataStatusText(data)
+    if not data then
+        return "Unknown"
+    end
+
+    local parts = {
+        "Source: |cffffffff" .. self:GetSourceLabel(data) .. "|r",
+        "Updated: |cffffffff" .. self:FormatUpdatedTime(data.updated) .. "|r",
+    }
+
+    if data.addonVersion and data.addonVersion ~= "" then
+        parts[#parts + 1] = "Version: |cffffffff" .. data.addonVersion .. "|r"
+    end
+
+    return table.concat(parts, " |cff808080-|r ")
+end
+
+function ClassForge:GetMinimapButtonAngle()
+    local profile = self:GetProfile()
+    local minimapButton = profile and profile.minimapButton or nil
+    local defaults = self.defaults.profile.minimapButton
+
+    return tonumber(minimapButton and minimapButton.angle) or defaults.angle
+end
+
+function ClassForge:IsMinimapButtonHidden()
+    local profile = self:GetProfile()
+    local minimapButton = profile and profile.minimapButton or nil
+    local defaults = self.defaults.profile.minimapButton
+
+    if minimapButton and minimapButton.hidden ~= nil then
+        return minimapButton.hidden and true or false
+    end
+
+    return defaults.hidden and true or false
+end
+
+function ClassForge:SetMinimapButtonAngle(angle)
+    ClassForgeDB.profile.minimapButton = ClassForgeDB.profile.minimapButton or {}
+    ClassForgeDB.profile.minimapButton.angle = angle
+end
+
+function ClassForge:SetMinimapButtonHidden(hidden)
+    ClassForgeDB.profile.minimapButton = ClassForgeDB.profile.minimapButton or {}
+    ClassForgeDB.profile.minimapButton.hidden = hidden and true or false
+
+    if not self.minimapButton then
+        return
+    end
+
+    if hidden then
+        self.minimapButton:Hide()
+    else
+        self.minimapButton:Show()
+        self:UpdateMinimapButtonPosition()
+    end
+end
+
+function ClassForge:ResetMinimapButtonPosition()
+    ClassForgeDB.profile.minimapButton = ClassForgeDB.profile.minimapButton or {}
+    ClassForgeDB.profile.minimapButton.angle = self.defaults.profile.minimapButton.angle
+    self:SetMinimapButtonHidden(false)
+    self:UpdateMinimapButtonPosition()
+end
+
+function ClassForge:UpdateMinimapButtonPosition()
+    if not self.minimapButton or not Minimap or self:IsMinimapButtonHidden() then
+        return
+    end
+
+    local angle = self:GetMinimapButtonAngle()
+    local radians = math.rad(angle)
+    local radius = (Minimap:GetWidth() / 2) + 5
+    local x = math.cos(radians) * radius
+    local y = math.sin(radians) * radius
+
+    self.minimapButton:ClearAllPoints()
+    self.minimapButton:SetPoint("CENTER", Minimap, "CENTER", x, y)
+end
+
+function ClassForge:OpenOptionsPanel()
+    if not self.optionsPanel then
+        return
+    end
+
+    InterfaceOptionsFrame_OpenToCategory(self.optionsPanel)
+    InterfaceOptionsFrame_OpenToCategory(self.optionsPanel)
+end
+
+function ClassForge:CreateMinimapButton()
+    if self.minimapButton or not Minimap then
+        return
+    end
+
+    local button = CreateFrame("Button", "ClassForgeMinimapButton", Minimap)
+    button:SetWidth(32)
+    button:SetHeight(32)
+    button:SetFrameStrata("MEDIUM")
+    button:SetMovable(false)
+    button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    button:RegisterForDrag("LeftButton")
+
+    local background = button:CreateTexture(nil, "BACKGROUND")
+    background:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    background:SetWidth(54)
+    background:SetHeight(54)
+    background:SetPoint("TOPLEFT")
+    button.background = background
+
+    local icon = button:CreateTexture(nil, "ARTWORK")
+    icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+    icon:SetWidth(20)
+    icon:SetHeight(20)
+    icon:SetPoint("CENTER", 0, 1)
+    button.icon = icon
+
+    local highlight = button:CreateTexture(nil, "HIGHLIGHT")
+    highlight:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+    highlight:SetBlendMode("ADD")
+    highlight:SetAllPoints(button)
+
+    button.isDragging = nil
+    button.dragStopTime = 0
+    button:SetScript("OnDragStart", function(selfButton)
+        selfButton.isDragging = true
+        selfButton:SetScript("OnUpdate", function()
+            local scale = Minimap:GetEffectiveScale()
+            local cursorX, cursorY = GetCursorPosition()
+            local centerX, centerY = Minimap:GetCenter()
+            if not centerX or not centerY then
+                return
+            end
+
+            local x = cursorX / scale - centerX
+            local y = cursorY / scale - centerY
+            local angle = math.deg(atan2(y, x))
+            ClassForge:SetMinimapButtonAngle(angle)
+            ClassForge:UpdateMinimapButtonPosition()
+        end)
+    end)
+
+    button:SetScript("OnDragStop", function(selfButton)
+        selfButton.isDragging = nil
+        selfButton.dragStopTime = GetTime()
+        selfButton:SetScript("OnUpdate", nil)
+    end)
+
+    button:SetScript("OnClick", function(selfButton)
+        if selfButton.isDragging or (GetTime() - (selfButton.dragStopTime or 0)) < 0.2 then
+            return
+        end
+
+        ClassForge:OpenOptionsPanel()
+    end)
+
+    button:SetScript("OnEnter", function(selfButton)
+        GameTooltip:SetOwner(selfButton, "ANCHOR_LEFT")
+        GameTooltip:SetText("ClassForge")
+        GameTooltip:AddLine("Left-click: Open options", 1, 1, 1)
+        GameTooltip:AddLine("Drag: Move button", 1, 1, 1)
+        GameTooltip:Show()
+    end)
+
+    button:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+
+    self.minimapButton = button
+    if self:IsMinimapButtonHidden() then
+        button:Hide()
+    else
+        self:UpdateMinimapButtonPosition()
+    end
+end
+
+function ClassForge:GetMapMemberColor(unit)
+    local data = unit and self:GetDataForUnit(unit) or nil
+    if not data then
+        return 1, 1, 1
+    end
+
+    return self:HexToRGB(data.color)
+end
+
+function ClassForge:ApplyColorToMapTexture(texture, unit)
+    if not texture or not texture.SetVertexColor then
+        return
+    end
+
+    texture:SetVertexColor(self:GetMapMemberColor(unit))
+end
+
+function ClassForge:GetMapObjectTexture(object)
+    if not object then
+        return nil
+    end
+
+    if object.icon and object.icon.SetVertexColor then
+        return object.icon
+    end
+
+    if object.texture and object.texture.SetVertexColor then
+        return object.texture
+    end
+
+    if object.Icon and object.Icon.SetVertexColor then
+        return object.Icon
+    end
+
+    if object.Texture and object.Texture.SetVertexColor then
+        return object.Texture
+    end
+
+    if object.SetVertexColor then
+        return object
+    end
+
+    if object.GetName then
+        local objectName = object:GetName()
+        if objectName then
+            local namedTexture = _G[objectName .. "Icon"]
+                or _G[objectName .. "Texture"]
+                or _G[objectName .. "IconTexture"]
+
+            if namedTexture and namedTexture.SetVertexColor then
+                return namedTexture
+            end
+        end
+    end
+
+    return nil
+end
+
+function ClassForge:ApplyColorToMapObject(object, unit)
+    self:ApplyColorToMapTexture(self:GetMapObjectTexture(object), unit)
+end
+
+function ClassForge:UpdateWorldMapMemberColors()
+    for index = 1, MAX_PARTY_MEMBERS do
+        self:ApplyColorToMapObject(_G["WorldMapParty" .. index], "party" .. index)
+    end
+
+    for index = 1, MAX_RAID_MEMBERS do
+        self:ApplyColorToMapObject(_G["WorldMapRaid" .. index], "raid" .. index)
+    end
+end
+
+function ClassForge:UpdateMinimapMemberColors()
+    local partyPrefixes = { "MiniMapParty", "MinimapParty" }
+    local raidPrefixes = { "MiniMapRaid", "MinimapRaid" }
+
+    for index = 1, MAX_PARTY_MEMBERS do
+        local unit = "party" .. index
+        for _, prefix in ipairs(partyPrefixes) do
+            self:ApplyColorToMapObject(_G[prefix .. index], unit)
+        end
+    end
+
+    for index = 1, MAX_RAID_MEMBERS do
+        local unit = "raid" .. index
+        for _, prefix in ipairs(raidPrefixes) do
+            self:ApplyColorToMapObject(_G[prefix .. index], unit)
+        end
+    end
+end
+
+function ClassForge:UpdateMapMemberColors()
+    self:UpdateWorldMapMemberColors()
+    self:UpdateMinimapMemberColors()
+end
+
+function ClassForge:SetupMapColorHooks()
+    if self.mapColorHooked then
+        return
+    end
+
+    self.mapColorHooked = true
+
+    if WorldMapUnit_Update then
+        hooksecurefunc("WorldMapUnit_Update", function(frame)
+            if not frame then
+                return
+            end
+
+            local unit = frame.unit
+            if unit and (string.find(unit, "^party%d+$") or string.find(unit, "^raid%d+$")) then
+                ClassForge:ApplyColorToMapObject(frame, unit)
+            end
+        end)
+    end
+
+    if WorldMapFrame_UpdateUnits then
+        hooksecurefunc("WorldMapFrame_UpdateUnits", function()
+            ClassForge:UpdateWorldMapMemberColors()
+        end)
+    end
+
+    if not self.mapColorTicker then
+        local ticker = CreateFrame("Frame")
+        ticker.elapsed = 0
+        ticker:SetScript("OnUpdate", function(_, elapsed)
+            ticker.elapsed = ticker.elapsed + elapsed
+            if ticker.elapsed < 0.2 then
+                return
+            end
+
+            ticker.elapsed = 0
+            ClassForge:UpdateMapMemberColors()
+        end)
+        self.mapColorTicker = ticker
+    end
 end
 
 function ClassForge:GetTargetProfilePosition()
@@ -85,7 +460,67 @@ function ClassForge:AppendTooltipData(tooltip, data)
     if data.order and data.order ~= "" then
         tooltip:AddLine("Order: |cffffffff" .. data.order .. "|r")
     end
+    tooltip:AddLine(self:GetDataStatusText(data))
     tooltip:Show()
+end
+
+function ClassForge:AppendMapTooltipData(tooltip, unit)
+    if not tooltip or not unit then
+        return
+    end
+
+    local data = self:GetDataForUnit(unit)
+    if not data then
+        return
+    end
+
+    tooltip:AddLine(" ")
+    tooltip:AddLine("ClassForge: " .. self:GetColoredClassText(data))
+    tooltip:AddLine("Role: |cffffffff" .. (data.role or self.defaults.profile.role) .. "|r")
+    if data.order and data.order ~= "" then
+        tooltip:AddLine("Order: |cffffffff" .. data.order .. "|r")
+    end
+    tooltip:AddLine(self:GetDataStatusText(data))
+    tooltip:Show()
+end
+
+function ClassForge:HookMapTooltipFrame(frame, tooltipObject, unit)
+    if not frame or frame.classForgeMapTooltipHooked then
+        return
+    end
+
+    frame.classForgeMapTooltipHooked = true
+    frame:HookScript("OnEnter", function()
+        ClassForge:AppendMapTooltipData(tooltipObject, unit or frame.unit)
+    end)
+end
+
+function ClassForge:SetupMapMarkerTooltips()
+    if self.mapMarkerTooltipTicker then
+        return
+    end
+
+    local ticker = CreateFrame("Frame")
+    ticker.elapsed = 0
+    ticker:SetScript("OnUpdate", function(_, elapsed)
+        ticker.elapsed = ticker.elapsed + elapsed
+        if ticker.elapsed < 0.5 then
+            return
+        end
+
+        ticker.elapsed = 0
+
+        for index = 1, MAX_PARTY_MEMBERS do
+            ClassForge:HookMapTooltipFrame(_G["WorldMapParty" .. index], WorldMapTooltip, "party" .. index)
+            ClassForge:HookMapTooltipFrame(_G["MiniMapParty" .. index] or _G["MinimapParty" .. index], GameTooltip, "party" .. index)
+        end
+
+        for index = 1, MAX_RAID_MEMBERS do
+            ClassForge:HookMapTooltipFrame(_G["WorldMapRaid" .. index], WorldMapTooltip, "raid" .. index)
+            ClassForge:HookMapTooltipFrame(_G["MiniMapRaid" .. index] or _G["MinimapRaid" .. index], GameTooltip, "raid" .. index)
+        end
+    end)
+    self.mapMarkerTooltipTicker = ticker
 end
 
 function ClassForge:HookTooltips()
@@ -131,10 +566,15 @@ function ClassForge:EnsureFriendsTooltipExtras()
     orderText:SetJustifyH("LEFT")
     orderText:SetWidth(188)
 
+    local updatedText = FriendsTooltip:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    updatedText:SetJustifyH("LEFT")
+    updatedText:SetWidth(188)
+
     self.friendsTooltipExtras = {
         classText = classText,
         roleText = roleText,
         orderText = orderText,
+        updatedText = updatedText,
     }
 end
 
@@ -175,6 +615,7 @@ function ClassForge:HideFriendsTooltipExtras()
     self.friendsTooltipExtras.classText:Hide()
     self.friendsTooltipExtras.roleText:Hide()
     self.friendsTooltipExtras.orderText:Hide()
+    self.friendsTooltipExtras.updatedText:Hide()
 end
 
 function ClassForge:UpdateFriendsTooltip(button)
@@ -196,6 +637,7 @@ function ClassForge:UpdateFriendsTooltip(button)
     local classText = self.friendsTooltipExtras.classText
     local roleText = self.friendsTooltipExtras.roleText
     local orderText = self.friendsTooltipExtras.orderText
+    local updatedText = self.friendsTooltipExtras.updatedText
 
     FriendsFrameTooltip_SetLine(classText, anchor, "Class: " .. self:GetColoredClassText(data), -8)
     FriendsFrameTooltip_SetLine(roleText, classText, "Role: |cffffffff" .. (data.role or self.defaults.profile.role) .. "|r", -2)
@@ -205,6 +647,8 @@ function ClassForge:UpdateFriendsTooltip(button)
     else
         orderText:Hide()
     end
+
+    FriendsFrameTooltip_SetLine(updatedText, (data.order and data.order ~= "") and orderText or roleText, "Source: |cffffffff" .. self:GetSourceLabel(data) .. "|r |cff808080-|r Updated: |cffffffff" .. self:FormatUpdatedTime(data.updated) .. "|r", -2)
 
     FriendsTooltip:SetHeight(FriendsTooltip.height + FRIENDS_TOOLTIP_MARGIN_WIDTH)
     FriendsTooltip:SetWidth(min(FRIENDS_TOOLTIP_MAX_WIDTH, FriendsTooltip.maxWidth + FRIENDS_TOOLTIP_MARGIN_WIDTH))
@@ -518,7 +962,7 @@ function ClassForge:UpdateTargetProfile()
 
     self.targetProfile.classText:SetText("Class: " .. self:GetColoredClassText(data))
     self.targetProfile.roleText:SetText("Role: " .. (data.role or self.defaults.profile.role))
-    self.targetProfile.orderText:SetText("Order: " .. (data.order ~= "" and data.order or "-"))
+    self.targetProfile.orderText:SetText("Order: " .. (data.order ~= "" and data.order or "-") .. " |cff808080-|r " .. self:GetSourceLabel(data) .. " |cff808080-|r " .. self:FormatUpdatedTime(data.updated))
     self.targetProfile:Show()
 end
 
@@ -568,5 +1012,5 @@ function ClassForge:UpdateInspectFrame()
     end
 
     local suffix = data.order ~= "" and (" |cff808080-|r " .. data.order) or ""
-    InspectPaperDollFrame.ClassForgeInfo:SetText(self:GetColoredClassText(data) .. " |cff808080(|r" .. (data.role or self.defaults.profile.role) .. suffix .. "|cff808080)|r")
+    InspectPaperDollFrame.ClassForgeInfo:SetText(self:GetColoredClassText(data) .. " |cff808080(|r" .. (data.role or self.defaults.profile.role) .. suffix .. " |cff808080-|r " .. self:GetSourceLabel(data) .. " |cff808080-|r " .. self:FormatUpdatedTime(data.updated) .. "|cff808080)|r")
 end

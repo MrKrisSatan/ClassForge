@@ -9,6 +9,10 @@ Core commands:
 `/cf setorder <order>`
 `/cf show`
 `/cf sync`
+`/cf showminimap`
+`/cf hideminimap`
+`/cf resetminimap`
+`/cf chattags on|off`
 `/cf resetpanel`
 `/cf reset`
 `/cf options`
@@ -22,11 +26,8 @@ What it does:
 - `/cf sync` refreshes your own cache entry, runs a `/who` sync pass, seeds placeholder records for new results, and requests addon data from visible players.
 - Sync traffic is throttled to reduce whisper and channel spam during repeated updates.
 - The target profile panel can be moved with `Shift` + drag and reset with `/cf resetpanel`.
-  <br>
-<img width="428" height="572" alt="image" src="https://github.com/user-attachments/assets/681fa23b-5088-4089-b314-90c0017937a9" />
-<br>
-<img width="428" height="572" alt="image" src="https://github.com/user-attachments/assets/9f0597b5-4af1-4d6e-8934-f6faf9d5ebd6" />
-<br>
-<img width="428" height="572" alt="image" src="https://github.com/user-attachments/assets/c1d301e9-27ae-490d-9825-01df159c9a59" />
-<br>
-<img width="428" height="572" alt="image" src="https://github.com/user-attachments/assets/05abff90-8ba2-436f-8f88-48a3ce1840ec" />
+- The minimap button can be dragged, hidden, shown, and reset.
+- Cached player data now shows freshness timestamps, and the options panel can clear stale or all cache entries.
+- Addon sync now carries addon version info and warns on mismatches.
+- Tooltips and inspect/target views now show data source, freshness, and addon version when available.
+- The options panel now includes a known-player browser and optional chat class tags for confirmed addon users.

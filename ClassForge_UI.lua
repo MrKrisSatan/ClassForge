@@ -34,6 +34,10 @@ function ClassForge:HandleSlash(message)
         self:Print("/cf setorder <order>")
         self:Print("/cf show")
         self:Print("/cf sync")
+        self:Print("/cf showminimap")
+        self:Print("/cf hideminimap")
+        self:Print("/cf resetminimap")
+        self:Print("/cf chattags on|off")
         self:Print("/cf resetpanel")
         self:Print("/cf reset")
         self:Print("/cf options")
@@ -99,6 +103,8 @@ function ClassForge:HandleSlash(message)
         self:Print("Colour: #" .. data.color)
         self:Print("Role: " .. data.role)
         self:Print("Order: " .. (data.order ~= "" and data.order or "-"))
+        self:Print("Source: " .. self:GetSourceLabel(data))
+        self:Print("Version: " .. (self.version or "1.0.0"))
         return
     end
 
@@ -111,6 +117,41 @@ function ClassForge:HandleSlash(message)
         else
             self:Print("Sync throttled. Try again in a moment.")
         end
+        return
+    end
+
+    if command == "showminimap" then
+        self:SetMinimapButtonHidden(false)
+        self:Print("Minimap button shown.")
+        return
+    end
+
+    if command == "hideminimap" then
+        self:SetMinimapButtonHidden(true)
+        self:Print("Minimap button hidden.")
+        return
+    end
+
+    if command == "resetminimap" then
+        self:ResetMinimapButtonPosition()
+        self:Print("Minimap button reset.")
+        return
+    end
+
+    if command == "chattags" then
+        local lowerRest = string.lower(self:Trim(rest))
+        if lowerRest == "on" then
+            self:SetChatDecorationEnabled(true)
+            self:Print("Chat tags enabled.")
+            return
+        end
+        if lowerRest == "off" then
+            self:SetChatDecorationEnabled(false)
+            self:Print("Chat tags disabled.")
+            return
+        end
+
+        self:Print("Usage: /cf chattags on|off")
         return
     end
 
@@ -252,13 +293,169 @@ function ClassForge:CreateOptionsPanel()
     panelHint:SetPoint("LEFT", panelButton, "RIGHT", 10, 0)
     panelHint:SetText("Hold Shift and drag the target panel to move it.")
 
+    local minimapToggle = CreateFrame("CheckButton", "ClassForgeOptionsMinimapToggle", panel, "UICheckButtonTemplate")
+    minimapToggle:SetPoint("TOPLEFT", panelButton, "BOTTOMLEFT", 0, -14)
+    _G[minimapToggle:GetName() .. "Text"]:SetText("Show minimap button")
+    minimapToggle:SetScript("OnClick", function(selfButton)
+        ClassForge:SetMinimapButtonHidden(not selfButton:GetChecked())
+    end)
+
+    local minimapResetButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    minimapResetButton:SetWidth(140)
+    minimapResetButton:SetHeight(24)
+    minimapResetButton:SetPoint("LEFT", minimapToggle, "RIGHT", 140, 0)
+    minimapResetButton:SetText("Reset Minimap")
+    minimapResetButton:SetScript("OnClick", function()
+        ClassForge:ResetMinimapButtonPosition()
+        minimapToggle:SetChecked(true)
+        ClassForge:Print("Minimap button reset.")
+    end)
+
+    local chatToggle = CreateFrame("CheckButton", "ClassForgeOptionsChatToggle", panel, "UICheckButtonTemplate")
+    chatToggle:SetPoint("TOPLEFT", minimapToggle, "BOTTOMLEFT", 0, -8)
+    _G[chatToggle:GetName() .. "Text"]:SetText("Show custom class tags in party/guild/whisper chat")
+    chatToggle:SetScript("OnClick", function(selfButton)
+        ClassForge:SetChatDecorationEnabled(selfButton:GetChecked())
+    end)
+
+    local cacheTitle = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    cacheTitle:SetPoint("TOPLEFT", chatToggle, "BOTTOMLEFT", 0, -22)
+    cacheTitle:SetText("Cache")
+
+    local cacheStatus = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    cacheStatus:SetPoint("TOPLEFT", cacheTitle, "BOTTOMLEFT", 0, -8)
+    cacheStatus:SetWidth(340)
+    cacheStatus:SetJustifyH("LEFT")
+
+    local cacheList = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    cacheList:SetPoint("TOPLEFT", cacheStatus, "BOTTOMLEFT", 0, -8)
+    cacheList:SetWidth(520)
+    cacheList:SetJustifyH("LEFT")
+    cacheList:SetJustifyV("TOP")
+
+    local function updateCacheDisplay()
+        local lines = {}
+        local entries = {}
+
+        if ClassForgeCache then
+            for _, data in pairs(ClassForgeCache) do
+                entries[#entries + 1] = data
+            end
+        end
+
+        table.sort(entries, function(left, right)
+            return (tonumber(left.updated) or 0) > (tonumber(right.updated) or 0)
+        end)
+
+        cacheStatus:SetText("Cached players: " .. ClassForge:GetCacheEntryCount())
+
+        local limit = math.min(#entries, 8)
+        for index = 1, limit do
+            local data = entries[index]
+            lines[#lines + 1] = string.format("%s - %s", data.name or "Unknown", ClassForge:FormatUpdatedTime(data.updated))
+        end
+
+        if #lines == 0 then
+            cacheList:SetText("No cached players yet.")
+        else
+            cacheList:SetText("Recent entries:\n" .. table.concat(lines, "\n"))
+        end
+    end
+
+    local browserTitle = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    browserTitle:SetText("Known Players")
+
+    local browserFrame = CreateFrame("ScrollFrame", "ClassForgeKnownPlayersScrollFrame", panel, "UIPanelScrollFrameTemplate")
+    browserFrame:SetPoint("TOPLEFT", browserTitle, "BOTTOMLEFT", 0, -8)
+    browserFrame:SetWidth(530)
+    browserFrame:SetHeight(150)
+
+    local browserContent = CreateFrame("Frame", nil, browserFrame)
+    browserContent:SetWidth(510)
+    browserContent:SetHeight(150)
+    browserFrame:SetScrollChild(browserContent)
+
+    local browserText = browserContent:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    browserText:SetPoint("TOPLEFT", 0, 0)
+    browserText:SetWidth(500)
+    browserText:SetJustifyH("LEFT")
+    browserText:SetJustifyV("TOP")
+
+    local function updateKnownPlayersBrowser()
+        local entries = {}
+        local lines = {
+            "Name | Class | Role | Source | Version | Updated",
+        }
+
+        if ClassForgeCache then
+            for _, data in pairs(ClassForgeCache) do
+                entries[#entries + 1] = data
+            end
+        end
+
+        table.sort(entries, function(left, right)
+            return string.lower(left.name or "") < string.lower(right.name or "")
+        end)
+
+        if #entries == 0 then
+            browserText:SetText("No known players yet.")
+            browserContent:SetHeight(150)
+            return
+        end
+
+        for _, data in ipairs(entries) do
+            lines[#lines + 1] = string.format(
+                "%s | %s | %s | %s | %s | %s",
+                data.name or "Unknown",
+                data.className or "Unknown",
+                data.role or "-",
+                ClassForge:GetSourceLabel(data),
+                (data.addonVersion and data.addonVersion ~= "") and data.addonVersion or "-",
+                ClassForge:FormatUpdatedTime(data.updated)
+            )
+        end
+
+        browserText:SetText(table.concat(lines, "\n"))
+        browserContent:SetHeight(math.max(150, browserText:GetStringHeight() + 10))
+    end
+
+    local clearStaleButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    clearStaleButton:SetWidth(100)
+    clearStaleButton:SetHeight(24)
+    clearStaleButton:SetPoint("TOPLEFT", cacheList, "BOTTOMLEFT", 0, -12)
+    clearStaleButton:SetText("Clear Stale")
+    clearStaleButton:SetScript("OnClick", function()
+        local removed = ClassForge:ClearStaleCacheEntries(30 * 24 * 60 * 60)
+        updateCacheDisplay()
+        updateKnownPlayersBrowser()
+        ClassForge:Print("Removed " .. removed .. " stale cache entr" .. (removed == 1 and "y." or "ies."))
+    end)
+
+    local clearAllButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    clearAllButton:SetWidth(100)
+    clearAllButton:SetHeight(24)
+    clearAllButton:SetPoint("LEFT", clearStaleButton, "RIGHT", 8, 0)
+    clearAllButton:SetText("Clear All")
+    clearAllButton:SetScript("OnClick", function()
+        ClassForge:ClearCache(true)
+        updateCacheDisplay()
+        updateKnownPlayersBrowser()
+        ClassForge:Print("Cache cleared.")
+    end)
+
+    browserTitle:SetPoint("TOPLEFT", clearStaleButton, "BOTTOMLEFT", 0, -22)
+
     panel:SetScript("OnShow", function()
         local profile = ClassForge:GetProfile()
         classBox:SetText(profile.className or ClassForge.defaults.profile.className)
         colorBox:SetText(profile.color or ClassForge.defaults.profile.color)
         roleBox:SetText(profile.role or ClassForge.defaults.profile.role)
         orderBox:SetText(profile.order or "")
+        minimapToggle:SetChecked(not ClassForge:IsMinimapButtonHidden())
+        chatToggle:SetChecked(ClassForge:IsChatDecorationEnabled())
         updatePreview()
+        updateCacheDisplay()
+        updateKnownPlayersBrowser()
     end)
 
     InterfaceOptions_AddCategory(panel)

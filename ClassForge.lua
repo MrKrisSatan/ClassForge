@@ -20,6 +20,13 @@ ClassForge.defaults = {
             x = 0,
             y = -20,
         },
+        minimapButton = {
+            angle = 225,
+            hidden = false,
+        },
+        chat = {
+            enabled = false,
+        },
         syncThrottle = {
             broadcast = 10,
             whisper = 20,
@@ -107,6 +114,9 @@ function ClassForge:RefreshAllDisplays()
     end
     if self.UpdateInspectFrame then
         self:UpdateInspectFrame()
+    end
+    if self.UpdateMapMemberColors then
+        self:UpdateMapMemberColors()
     end
 end
 

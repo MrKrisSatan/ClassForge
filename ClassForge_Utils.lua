@@ -107,6 +107,101 @@ function ClassForge:GetColoredClassText(data)
     return string.format("|cff%s%s|r", self:SanitizeHex(data.color) or "FFFFFF", data.className)
 end
 
+function ClassForge:FormatUpdatedTime(timestamp)
+    local numeric = tonumber(timestamp)
+    if not numeric or numeric <= 0 then
+        return "Unknown"
+    end
+
+    local diff = time() - numeric
+    if diff <= 0 then
+        return "Just now"
+    end
+    if diff < 60 then
+        return diff .. "s ago"
+    end
+    if diff < 3600 then
+        return math.floor(diff / 60) .. "m ago"
+    end
+    if diff < 86400 then
+        return math.floor(diff / 3600) .. "h ago"
+    end
+    if diff < 604800 then
+        return math.floor(diff / 86400) .. "d ago"
+    end
+
+    return date("%Y-%m-%d %H:%M", numeric)
+end
+
+function ClassForge:GetSourceLabel(data)
+    local source = data and data.source or nil
+
+    if source == "self" then
+        return "You"
+    end
+    if source == "addon" then
+        return "Addon"
+    end
+    if source == "who" then
+        return "/who"
+    end
+    if source == "observed" then
+        return "Observed"
+    end
+
+    return "Unknown"
+end
+
+function ClassForge:IsConfirmedAddonUser(data)
+    return data and (data.source == "addon" or data.source == "self")
+end
+
+function ClassForge:GetCacheEntryCount()
+    local total = 0
+
+    if not ClassForgeCache then
+        return total
+    end
+
+    for _ in pairs(ClassForgeCache) do
+        total = total + 1
+    end
+
+    return total
+end
+
+function ClassForge:ClearCache(resetSelf)
+    ClassForgeCache = {}
+
+    if resetSelf then
+        self:RefreshPlayerCache()
+    end
+
+    self:RefreshAllDisplays()
+end
+
+function ClassForge:ClearStaleCacheEntries(maxAgeSeconds)
+    if not ClassForgeCache then
+        return 0
+    end
+
+    local cutoff = time() - (tonumber(maxAgeSeconds) or 0)
+    local removed = 0
+
+    for key, data in pairs(ClassForgeCache) do
+        local updated = tonumber(data and data.updated) or 0
+        if updated > 0 and updated < cutoff then
+            ClassForgeCache[key] = nil
+            removed = removed + 1
+        end
+    end
+
+    self:RefreshPlayerCache()
+    self:RefreshAllDisplays()
+
+    return removed
+end
+
 function ClassForge:GetDataForName(name)
     local key = self:GetPlayerKey(name)
     if not key or not ClassForgeCache then
@@ -149,6 +244,7 @@ function ClassForge:SetDataForName(name, data)
         color = self:SanitizeHex(data.color) or existing.color or self.defaults.profile.color,
         role = self:NormalizeRole(data.role) or existing.role or self.defaults.profile.role,
         order = self:Trim(data.order) ~= "" and self:Trim(data.order) or (data.source == "addon" and "" or existing.order or ""),
+        addonVersion = self:Trim(data.addonVersion) ~= "" and self:Trim(data.addonVersion) or existing.addonVersion or "",
         updated = incomingUpdated,
         source = data.source or "observed",
     }

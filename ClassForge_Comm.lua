@@ -14,7 +14,8 @@ end
 
 function ClassForge:SerializeData(data)
     return table.concat({
-        "CF1",
+        "CF2",
+        encodeField(self.version or "1.0.0"),
         encodeField(data.className or ""),
         encodeField(self:SanitizeHex(data.color) or self.defaults.profile.color),
         encodeField(self:NormalizeRole(data.role) or self.defaults.profile.role),
@@ -79,19 +80,33 @@ function ClassForge:DeserializeData(message)
         return nil
     end
 
-    local version, className, color, role, order = strsplit("|", message)
-    if version ~= "CF1" then
-        return nil
+    local protocol, addonVersion, className, color, role, order = strsplit("|", message)
+
+    if protocol == "CF2" then
+        return {
+            addonVersion = decodeField(addonVersion),
+            className = decodeField(className),
+            color = decodeField(color),
+            role = decodeField(role),
+            order = decodeField(order),
+            updated = time(),
+            source = "addon",
+        }
     end
 
-    return {
-        className = decodeField(className),
-        color = decodeField(color),
-        role = decodeField(role),
-        order = decodeField(order),
-        updated = time(),
-        source = "addon",
-    }
+    if protocol == "CF1" then
+        return {
+            addonVersion = "1.0.0",
+            className = decodeField(addonVersion),
+            color = decodeField(className),
+            role = decodeField(color),
+            order = decodeField(role),
+            updated = time(),
+            source = "addon",
+        }
+    end
+
+    return nil
 end
 
 function ClassForge:BroadcastSelf(channel, target)
@@ -198,5 +213,13 @@ function ClassForge:CHAT_MSG_ADDON(prefix, message, _, sender)
     end
 
     self:SetDataForName(sender, data)
+    if data.addonVersion and data.addonVersion ~= "" and data.addonVersion ~= (self.version or "") then
+        self.versionWarnings = self.versionWarnings or {}
+        local key = self:GetPlayerKey(sender)
+        if key and not self.versionWarnings[key] then
+            self.versionWarnings[key] = true
+            self:Print((self:NormalizePlayerName(sender) or sender) .. " is using ClassForge " .. data.addonVersion .. ". Your version is " .. (self.version or "unknown") .. ".")
+        end
+    end
     self:RefreshAllDisplays()
 end
