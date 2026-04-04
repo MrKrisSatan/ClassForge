@@ -17,8 +17,8 @@ function ClassForge:SerializeData(data)
         "CF2",
         encodeField(self.version or "1.0.0"),
         encodeField(data.className or ""),
-        encodeField(self:SanitizeHex(data.color) or self.defaults.profile.color),
-        encodeField(self:NormalizeRole(data.role) or self.defaults.profile.role),
+        encodeField(self:SanitizeHex(data.color) or self.defaults.character.color),
+        encodeField(self:NormalizeRole(data.role) or self.defaults.character.role),
         encodeField(data.order or ""),
     }, "|")
 end

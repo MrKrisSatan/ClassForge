@@ -224,7 +224,7 @@ function ClassForge:CreateMinimapButton()
     button.background = background
 
     local icon = button:CreateTexture(nil, "ARTWORK")
-    icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+    icon:SetTexture("Interface\\AddOns\\ClassForge\\Media\\ClassForge-Minimap")
     icon:SetWidth(20)
     icon:SetHeight(20)
     icon:SetPoint("CENTER", 0, 1)
@@ -544,7 +544,7 @@ function ClassForge:AppendMapTooltipData(tooltip, unit)
 
     tooltip:AddLine(" ")
     tooltip:AddLine("ClassForge: " .. self:GetColoredClassText(data))
-    tooltip:AddLine("Role: |cffffffff" .. (data.role or self.defaults.profile.role) .. "|r")
+    tooltip:AddLine("Role: |cffffffff" .. (data.role or self.defaults.character.role) .. "|r")
     if data.order and data.order ~= "" then
         tooltip:AddLine("Order: |cffffffff" .. data.order .. "|r")
     end
@@ -708,7 +708,7 @@ function ClassForge:UpdateFriendsTooltip(button)
     local updatedText = self.friendsTooltipExtras.updatedText
 
     FriendsFrameTooltip_SetLine(classText, anchor, "Class: " .. self:GetColoredClassText(data), -8)
-    FriendsFrameTooltip_SetLine(roleText, classText, "Role: |cffffffff" .. (data.role or self.defaults.profile.role) .. "|r", -2)
+    FriendsFrameTooltip_SetLine(roleText, classText, "Role: |cffffffff" .. (data.role or self.defaults.character.role) .. "|r", -2)
 
     if data.order and data.order ~= "" then
         FriendsFrameTooltip_SetLine(orderText, roleText, "Order: |cffffffff" .. data.order .. "|r", -2)
@@ -929,7 +929,7 @@ function ClassForge:UpdateCharacterPanel()
     end
 
     local data = self:BuildProfileData()
-    local roleText = data.role or self.defaults.profile.role
+    local roleText = data.role or self.defaults.character.role
     local orderText = data.order ~= "" and (" |cff808080-|r " .. data.order) or ""
 
     PaperDollFrame.ClassForgeInfo:SetText(self:GetColoredClassText(data) .. " |cff808080(|r" .. roleText .. orderText .. "|cff808080)|r")
@@ -1034,7 +1034,7 @@ function ClassForge:UpdateTargetProfile()
     end
 
     self.targetProfile.classText:SetText("Class: " .. self:GetColoredClassText(data))
-    self.targetProfile.roleText:SetText("Role: " .. (data.role or self.defaults.profile.role))
+    self.targetProfile.roleText:SetText("Role: " .. (data.role or self.defaults.character.role))
     self.targetProfile.orderText:SetText("Order: " .. (data.order ~= "" and data.order or "-") .. " |cff808080-|r " .. self:GetSourceLabel(data) .. " |cff808080-|r " .. self:FormatUpdatedTime(data.updated))
     self.targetProfile:Show()
 end
@@ -1085,5 +1085,5 @@ function ClassForge:UpdateInspectFrame()
     end
 
     local suffix = data.order ~= "" and (" |cff808080-|r " .. data.order) or ""
-    InspectPaperDollFrame.ClassForgeInfo:SetText(self:GetColoredClassText(data) .. " |cff808080(|r" .. (data.role or self.defaults.profile.role) .. suffix .. " |cff808080-|r " .. self:GetSourceLabel(data) .. " |cff808080-|r " .. self:FormatUpdatedTime(data.updated) .. "|cff808080)|r")
+    InspectPaperDollFrame.ClassForgeInfo:SetText(self:GetColoredClassText(data) .. " |cff808080(|r" .. (data.role or self.defaults.character.role) .. suffix .. " |cff808080-|r " .. self:GetSourceLabel(data) .. " |cff808080-|r " .. self:FormatUpdatedTime(data.updated) .. "|cff808080)|r")
 end

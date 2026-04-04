@@ -290,6 +290,7 @@ end
 function ClassForge:MigrateDatabase()
     ClassForgeDB = ClassForgeDB or {}
     ClassForgeDB.profile = self:CopyDefaults(self.defaults.profile, ClassForgeDB.profile or {})
+    ClassForgeDB.characters = ClassForgeDB.characters or {}
     ClassForgeCache = ClassForgeCache or {}
 
     local version = tonumber(ClassForgeDB.dbVersion) or 0
@@ -317,15 +318,33 @@ function ClassForge:MigrateDatabase()
         version = 2
     end
 
+    if version < 3 then
+        local characterKey = self:GetCurrentCharacterKey()
+        if characterKey and not ClassForgeDB.characters[characterKey] then
+            ClassForgeDB.characters[characterKey] = self:CopyDefaults(self.defaults.character, {})
+            ClassForgeDB.characters[characterKey].className = self:Trim(ClassForgeDB.profile.className) ~= "" and self:Trim(ClassForgeDB.profile.className) or self.defaults.character.className
+            ClassForgeDB.characters[characterKey].color = self:SanitizeHex(ClassForgeDB.profile.color) or self.defaults.character.color
+            ClassForgeDB.characters[characterKey].role = self:NormalizeRole(ClassForgeDB.profile.role) or self.defaults.character.role
+            ClassForgeDB.characters[characterKey].order = self:Trim(ClassForgeDB.profile.order)
+            ClassForgeDB.characters[characterKey]._migratedFromLegacy = true
+        end
+
+        ClassForgeDB.profile.className = nil
+        ClassForgeDB.profile.color = nil
+        ClassForgeDB.profile.role = nil
+        ClassForgeDB.profile.order = nil
+        version = 3
+    end
+
     local rebuiltCache = {}
 
     for key, data in pairs(ClassForgeCache) do
         if type(data) == "table" then
             local normalizedName = self:NormalizePlayerName(data.name or key)
             data.name = normalizedName or data.name or key
-            data.color = self:SanitizeHex(data.color) or self.defaults.profile.color
-            data.role = self:NormalizeRole(data.role) or self.defaults.profile.role
-            data.className = self:Trim(data.className) ~= "" and self:Trim(data.className) or self.defaults.profile.className
+            data.color = self:SanitizeHex(data.color) or self.defaults.character.color
+            data.role = self:NormalizeRole(data.role) or self.defaults.character.role
+            data.className = self:Trim(data.className) ~= "" and self:Trim(data.className) or self.defaults.character.className
             data.order = self:Trim(data.order)
             data.source = data.source or "observed"
             data.updated = tonumber(data.updated) or time()
@@ -336,7 +355,7 @@ function ClassForge:MigrateDatabase()
 
     ClassForgeCache = rebuiltCache
 
-    ClassForgeDB.dbVersion = self.dbVersion
+    ClassForgeDB.dbVersion = math.max(self.dbVersion, version)
 end
 
 function ClassForge:GetDataForName(name)
@@ -391,9 +410,9 @@ function ClassForge:SetDataForName(name, data)
 
     ClassForgeCache[key] = {
         name = normalized,
-        className = self:Trim(data.className) ~= "" and self:Trim(data.className) or existing.className or self.defaults.profile.className,
-        color = self:SanitizeHex(data.color) or existing.color or self.defaults.profile.color,
-        role = self:NormalizeRole(data.role) or existing.role or self.defaults.profile.role,
+        className = self:Trim(data.className) ~= "" and self:Trim(data.className) or existing.className or self.defaults.character.className,
+        color = self:SanitizeHex(data.color) or existing.color or self.defaults.character.color,
+        role = self:NormalizeRole(data.role) or existing.role or self.defaults.character.role,
         order = self:Trim(data.order) ~= "" and self:Trim(data.order) or (data.source == "addon" and "" or existing.order or ""),
         addonVersion = self:Trim(data.addonVersion) ~= "" and self:Trim(data.addonVersion) or existing.addonVersion or "",
         updated = incomingUpdated,
@@ -461,5 +480,5 @@ function ClassForge:GuessColorFromClass(className)
         return string.format("%02X%02X%02X", color.r * 255, color.g * 255, color.b * 255)
     end
 
-    return self.defaults.profile.color
+    return self.defaults.character.color
 end

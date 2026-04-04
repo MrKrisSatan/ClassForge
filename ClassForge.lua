@@ -2,7 +2,7 @@ ClassForge = ClassForge or {}
 
 ClassForge.name = "ClassForge"
 ClassForge.prefix = "CLASSFORGE"
-ClassForge.version = "2.5.2"
+ClassForge.version = "2.5.5"
 ClassForge.dbVersion = 2
 ClassForge.homepage = "https://github.com/MrKrisSatan/ClassForge"
 ClassForge.releasesPage = "https://github.com/MrKrisSatan/ClassForge/releases"
@@ -11,12 +11,14 @@ local addon = CreateFrame("Frame")
 ClassForge.frame = addon
 
 ClassForge.defaults = {
-    profile = {
-        enabled = true,
+    character = {
         className = "Hero",
         color = "FFD100",
         role = "DPS",
         order = "",
+    },
+    profile = {
+        enabled = true,
         targetProfilePosition = {
             point = "TOP",
             relativePoint = "BOTTOM",
@@ -78,13 +80,72 @@ function ClassForge:GetProfile()
     return ClassForgeDB and ClassForgeDB.profile or self.defaults.profile
 end
 
+function ClassForge:GetCurrentCharacterKey()
+    local playerName = UnitName("player")
+    local realmName = GetRealmName and GetRealmName() or nil
+
+    playerName = self:Trim(playerName)
+    realmName = self:GetNormalizedRealmName(realmName)
+
+    if playerName == "" then
+        return nil
+    end
+
+    if realmName and realmName ~= "" then
+        return playerName .. "-" .. realmName
+    end
+
+    return playerName
+end
+
+function ClassForge:GetCharacterProfile()
+    if not ClassForgeDB then
+        return self.defaults.character
+    end
+
+    ClassForgeDB.characters = ClassForgeDB.characters or {}
+
+    local characterKey = self:GetCurrentCharacterKey()
+    if not characterKey then
+        return self.defaults.character
+    end
+
+    ClassForgeDB.characters[characterKey] = self:CopyDefaults(self.defaults.character, ClassForgeDB.characters[characterKey] or {})
+    return ClassForgeDB.characters[characterKey]
+end
+
+function ClassForge:EnsureCurrentCharacterProfile()
+    local characterProfile = self:GetCharacterProfile()
+    local globalProfile = self:GetProfile()
+
+    if not characterProfile._migratedFromLegacy then
+        local hasLegacyIdentity = globalProfile and (
+            self:Trim(globalProfile.className) ~= ""
+            or self:SanitizeHex(globalProfile.color)
+            or self:NormalizeRole(globalProfile.role)
+            or self:Trim(globalProfile.order) ~= ""
+        )
+
+        if hasLegacyIdentity then
+            characterProfile.className = self:Trim(characterProfile.className) ~= "" and characterProfile.className or (self:Trim(globalProfile.className) ~= "" and self:Trim(globalProfile.className) or self.defaults.character.className)
+            characterProfile.color = self:SanitizeHex(characterProfile.color) or self:SanitizeHex(globalProfile.color) or self.defaults.character.color
+            characterProfile.role = self:NormalizeRole(characterProfile.role) or self:NormalizeRole(globalProfile.role) or self.defaults.character.role
+            characterProfile.order = self:Trim(characterProfile.order) ~= "" and self:Trim(characterProfile.order) or self:Trim(globalProfile.order)
+        end
+
+        characterProfile._migratedFromLegacy = true
+    end
+
+    return characterProfile
+end
+
 function ClassForge:BuildProfileData()
-    local profile = self:GetProfile()
+    local profile = self:GetCharacterProfile()
 
     return {
-        className = self:Trim(profile.className) ~= "" and self:Trim(profile.className) or self.defaults.profile.className,
-        color = self:SanitizeHex(profile.color) or self.defaults.profile.color,
-        role = self:NormalizeRole(profile.role) or self.defaults.profile.role,
+        className = self:Trim(profile.className) ~= "" and self:Trim(profile.className) or self.defaults.character.className,
+        color = self:SanitizeHex(profile.color) or self.defaults.character.color,
+        role = self:NormalizeRole(profile.role) or self.defaults.character.role,
         order = self:Trim(profile.order),
         addonVersion = self.version,
         updated = time(),
@@ -161,6 +222,7 @@ function ClassForge:PLAYER_LOGIN()
         },
     }
 
+    self:EnsureCurrentCharacterProfile()
     self:SetupSlashCommands()
     self:CreateOptionsPanel()
     self:InitDisplay()

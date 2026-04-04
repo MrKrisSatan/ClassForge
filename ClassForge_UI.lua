@@ -55,7 +55,7 @@ function ClassForge:HandleSlash(message)
             return
         end
 
-        ClassForgeDB.profile.className = rest
+        self:GetCharacterProfile().className = rest
         self:RefreshPlayerCache()
         self:BroadcastStartup()
         self:RefreshAllDisplays()
@@ -70,7 +70,7 @@ function ClassForge:HandleSlash(message)
             return
         end
 
-        ClassForgeDB.profile.color = color
+        self:GetCharacterProfile().color = color
         self:RefreshPlayerCache()
         self:BroadcastStartup()
         self:RefreshAllDisplays()
@@ -85,7 +85,7 @@ function ClassForge:HandleSlash(message)
             return
         end
 
-        ClassForgeDB.profile.role = role
+        self:GetCharacterProfile().role = role
         self:RefreshPlayerCache()
         self:BroadcastStartup()
         self:RefreshAllDisplays()
@@ -94,7 +94,7 @@ function ClassForge:HandleSlash(message)
     end
 
     if command == "setorder" then
-        ClassForgeDB.profile.order = self:Trim(rest)
+        self:GetCharacterProfile().order = self:Trim(rest)
         self:RefreshPlayerCache()
         self:BroadcastStartup()
         self:RefreshAllDisplays()
@@ -218,10 +218,11 @@ function ClassForge:HandleSlash(message)
     end
 
     if command == "reset" then
-        ClassForgeDB.profile.className = self.defaults.profile.className
-        ClassForgeDB.profile.color = self.defaults.profile.color
-        ClassForgeDB.profile.role = self.defaults.profile.role
-        ClassForgeDB.profile.order = self.defaults.profile.order
+        local characterProfile = self:GetCharacterProfile()
+        characterProfile.className = self.defaults.character.className
+        characterProfile.color = self.defaults.character.color
+        characterProfile.role = self.defaults.character.role
+        characterProfile.order = self.defaults.character.order
         self:RefreshPlayerCache()
         self:BroadcastStartup()
         self:RefreshAllDisplays()
@@ -313,10 +314,10 @@ function ClassForge:CreateOptionsPanel()
     preview:SetJustifyH("LEFT")
 
     local function updatePreview()
-        local role = ClassForge:NormalizeRole(roleBox:GetText()) or ClassForge.defaults.profile.role
+        local role = ClassForge:NormalizeRole(roleBox:GetText()) or ClassForge.defaults.character.role
         local data = {
-            className = ClassForge:Trim(classBox:GetText()) ~= "" and ClassForge:Trim(classBox:GetText()) or ClassForge.defaults.profile.className,
-            color = ClassForge:SanitizeHex(colorBox:GetText()) or ClassForge.defaults.profile.color,
+            className = ClassForge:Trim(classBox:GetText()) ~= "" and ClassForge:Trim(classBox:GetText()) or ClassForge.defaults.character.className,
+            color = ClassForge:SanitizeHex(colorBox:GetText()) or ClassForge.defaults.character.color,
             role = role,
             order = ClassForge:Trim(orderBox:GetText()),
         }
@@ -335,10 +336,11 @@ function ClassForge:CreateOptionsPanel()
         local color = ClassForge:SanitizeHex(colorBox:GetText())
         local role = ClassForge:NormalizeRole(roleBox:GetText())
 
-        ClassForgeDB.profile.className = className ~= "" and className or ClassForge.defaults.profile.className
-        ClassForgeDB.profile.color = color or ClassForge.defaults.profile.color
-        ClassForgeDB.profile.role = role or ClassForge.defaults.profile.role
-        ClassForgeDB.profile.order = ClassForge:Trim(orderBox:GetText())
+        local characterProfile = ClassForge:GetCharacterProfile()
+        characterProfile.className = className ~= "" and className or ClassForge.defaults.character.className
+        characterProfile.color = color or ClassForge.defaults.character.color
+        characterProfile.role = role or ClassForge.defaults.character.role
+        characterProfile.order = ClassForge:Trim(orderBox:GetText())
 
         ClassForge:RefreshPlayerCache()
         ClassForge:BroadcastStartup()
@@ -362,10 +364,10 @@ function ClassForge:CreateOptionsPanel()
     resetButton:SetPoint("LEFT", syncButton, "RIGHT", 8, 0)
     resetButton:SetText("Reset")
     resetButton:SetScript("OnClick", function()
-        classBox:SetText(ClassForge.defaults.profile.className)
-        colorBox:SetText(ClassForge.defaults.profile.color)
-        roleBox:SetText(ClassForge.defaults.profile.role)
-        orderBox:SetText(ClassForge.defaults.profile.order)
+        classBox:SetText(ClassForge.defaults.character.className)
+        colorBox:SetText(ClassForge.defaults.character.color)
+        roleBox:SetText(ClassForge.defaults.character.role)
+        orderBox:SetText(ClassForge.defaults.character.order)
         updatePreview()
     end)
 
@@ -574,10 +576,11 @@ function ClassForge:CreateOptionsPanel()
 
     panel:SetScript("OnShow", function()
         local profile = ClassForge:GetProfile()
-        classBox:SetText(profile.className or ClassForge.defaults.profile.className)
-        colorBox:SetText(profile.color or ClassForge.defaults.profile.color)
-        roleBox:SetText(profile.role or ClassForge.defaults.profile.role)
-        orderBox:SetText(profile.order or "")
+        local characterProfile = ClassForge:GetCharacterProfile()
+        classBox:SetText(characterProfile.className or ClassForge.defaults.character.className)
+        colorBox:SetText(characterProfile.color or ClassForge.defaults.character.color)
+        roleBox:SetText(characterProfile.role or ClassForge.defaults.character.role)
+        orderBox:SetText(characterProfile.order or "")
         minimapToggle:SetChecked(not ClassForge:IsMinimapButtonHidden())
         chatToggle:SetChecked(ClassForge:IsChatDecorationEnabled())
         realmToggle:SetChecked(ClassForge:IsRealmAwareEnabled())
