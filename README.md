@@ -7,12 +7,17 @@ Core commands:
 `/cf setcolor <hex>`
 `/cf setrole <Heal|Tank|DPS>`
 `/cf setorder <order>`
+`/cf realmaware on|off`
 `/cf show`
 `/cf sync`
 `/cf showminimap`
 `/cf hideminimap`
 `/cf resetminimap`
 `/cf chattags on|off`
+`/cf showpanel`
+`/cf hidepanel`
+`/cf lockpanel`
+`/cf unlockpanel`
 `/cf resetpanel`
 `/cf reset`
 `/cf options`
@@ -31,3 +36,7 @@ What it does:
 - Addon sync now carries addon version info and warns on mismatches.
 - Tooltips and inspect/target views now show data source, freshness, and addon version when available.
 - The options panel now includes a known-player browser and optional chat class tags for confirmed addon users.
+- SavedVariables now use schema migration so profile and cache changes are upgraded forward on load.
+- The target profile panel can now be hidden, shown, locked, unlocked, and reset.
+- Realm-aware naming can be enabled for servers that expose realm suffixes.
+- The options panel is split into Profile, Display, and Cache tabs.

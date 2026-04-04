@@ -25,6 +25,48 @@ function ClassForge:IsChatDecorationEnabled()
     return self.defaults.profile.chat.enabled and true or false
 end
 
+function ClassForge:IsTargetProfileHidden()
+    local profile = self:GetProfile()
+    local targetProfile = profile and profile.targetProfile or nil
+
+    if targetProfile and targetProfile.hidden ~= nil then
+        return targetProfile.hidden and true or false
+    end
+
+    return self.defaults.profile.targetProfile.hidden and true or false
+end
+
+function ClassForge:IsTargetProfileLocked()
+    local profile = self:GetProfile()
+    local targetProfile = profile and profile.targetProfile or nil
+
+    if targetProfile and targetProfile.locked ~= nil then
+        return targetProfile.locked and true or false
+    end
+
+    return self.defaults.profile.targetProfile.locked and true or false
+end
+
+function ClassForge:SetTargetProfileHidden(hidden)
+    ClassForgeDB.profile.targetProfile = ClassForgeDB.profile.targetProfile or {}
+    ClassForgeDB.profile.targetProfile.hidden = hidden and true or false
+
+    if hidden and self.targetProfile then
+        self.targetProfile:Hide()
+    else
+        self:UpdateTargetProfile()
+    end
+end
+
+function ClassForge:SetTargetProfileLocked(locked)
+    ClassForgeDB.profile.targetProfile = ClassForgeDB.profile.targetProfile or {}
+    ClassForgeDB.profile.targetProfile.locked = locked and true or false
+
+    if self.targetProfile and self.targetProfile.hintText then
+        self.targetProfile.hintText:SetText(locked and "Locked" or "Shift-drag")
+    end
+end
+
 function ClassForge:SetChatDecorationEnabled(enabled)
     ClassForgeDB.profile.chat = ClassForgeDB.profile.chat or {}
     ClassForgeDB.profile.chat.enabled = enabled and true or false
@@ -343,6 +385,13 @@ function ClassForge:UpdateMapMemberColors()
     self:UpdateMinimapMemberColors()
 end
 
+function ClassForge:ScheduleMapMemberUpdate(delay)
+    self.mapColorState = self.mapColorState or {}
+    self.mapColorState.pending = true
+    self.mapColorState.delay = tonumber(delay) or 0
+    self.mapColorState.elapsed = 0
+end
+
 function ClassForge:SetupMapColorHooks()
     if self.mapColorHooked then
         return
@@ -370,16 +419,35 @@ function ClassForge:SetupMapColorHooks()
     end
 
     if not self.mapColorTicker then
+        self.mapColorState = { pending = true, delay = 0, elapsed = 0, fallbackElapsed = 0 }
         local ticker = CreateFrame("Frame")
-        ticker.elapsed = 0
         ticker:SetScript("OnUpdate", function(_, elapsed)
-            ticker.elapsed = ticker.elapsed + elapsed
-            if ticker.elapsed < 0.2 then
+            local state = ClassForge.mapColorState
+            state.elapsed = state.elapsed + elapsed
+            state.fallbackElapsed = state.fallbackElapsed + elapsed
+
+            if state.pending and state.elapsed >= state.delay then
+                state.pending = nil
+                state.delay = 0
+                state.elapsed = 0
+                ClassForge:UpdateMapMemberColors()
+            end
+
+            if not GetNumPartyMembers and not GetNumRaidMembers then
                 return
             end
 
-            ticker.elapsed = 0
-            ClassForge:UpdateMapMemberColors()
+            if state.fallbackElapsed < 1.0 then
+                return
+            end
+
+            state.fallbackElapsed = 0
+
+            local hasParty = (GetNumPartyMembers() or 0) > 0
+            local hasRaid = (GetNumRaidMembers() or 0) > 0
+            if hasParty or hasRaid then
+                ClassForge:UpdateMapMemberColors()
+            end
         end)
         self.mapColorTicker = ticker
     end
@@ -920,7 +988,7 @@ function ClassForge:CreateTargetProfile()
     frame:RegisterForDrag("LeftButton")
     frame:SetMovable(true)
     frame:SetScript("OnDragStart", function(selfFrame)
-        if IsShiftKeyDown() then
+        if IsShiftKeyDown() and not ClassForge:IsTargetProfileLocked() then
             selfFrame:StartMoving()
         end
     end)
@@ -943,7 +1011,7 @@ function ClassForge:CreateTargetProfile()
 
     frame.hintText = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     frame.hintText:SetPoint("BOTTOMRIGHT", -8, 8)
-    frame.hintText:SetText("Shift-drag")
+    frame.hintText:SetText(self:IsTargetProfileLocked() and "Locked" or "Shift-drag")
 
     self.targetProfile = frame
     self:ApplyTargetProfilePosition()
@@ -951,6 +1019,11 @@ end
 
 function ClassForge:UpdateTargetProfile()
     if not self.targetProfile then
+        return
+    end
+
+    if self:IsTargetProfileHidden() then
+        self.targetProfile:Hide()
         return
     end
 

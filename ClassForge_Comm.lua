@@ -221,5 +221,8 @@ function ClassForge:CHAT_MSG_ADDON(prefix, message, _, sender)
             self:Print((self:NormalizePlayerName(sender) or sender) .. " is using ClassForge " .. data.addonVersion .. ". Your version is " .. (self.version or "unknown") .. ".")
         end
     end
+    if self.ScheduleMapMemberUpdate then
+        self:ScheduleMapMemberUpdate(0)
+    end
     self:RefreshAllDisplays()
 end

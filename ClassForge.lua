@@ -2,7 +2,8 @@ ClassForge = ClassForge or {}
 
 ClassForge.name = "ClassForge"
 ClassForge.prefix = "CLASSFORGE"
-ClassForge.version = "1.0.0"
+ClassForge.version = "2.5.1"
+ClassForge.dbVersion = 2
 
 local addon = CreateFrame("Frame")
 ClassForge.frame = addon
@@ -20,12 +21,19 @@ ClassForge.defaults = {
             x = 0,
             y = -20,
         },
+        targetProfile = {
+            hidden = false,
+            locked = false,
+        },
         minimapButton = {
             angle = 225,
             hidden = false,
         },
         chat = {
             enabled = false,
+        },
+        names = {
+            realmAware = false,
         },
         syncThrottle = {
             broadcast = 10,
@@ -76,6 +84,7 @@ function ClassForge:BuildProfileData()
         color = self:SanitizeHex(profile.color) or self.defaults.profile.color,
         role = self:NormalizeRole(profile.role) or self.defaults.profile.role,
         order = self:Trim(profile.order),
+        addonVersion = self.version,
         updated = time(),
         source = "self",
     }
@@ -118,12 +127,16 @@ function ClassForge:RefreshAllDisplays()
     if self.UpdateMapMemberColors then
         self:UpdateMapMemberColors()
     end
+    if self.ScheduleMapMemberUpdate then
+        self:ScheduleMapMemberUpdate(0)
+    end
 end
 
 function ClassForge:ADDON_LOADED(name)
     if name == self.name then
         ClassForgeDB = self:CopyDefaults(self.defaults, ClassForgeDB or {})
         ClassForgeCache = ClassForgeCache or {}
+        self:MigrateDatabase()
         return
     end
 
@@ -163,6 +176,9 @@ end
 function ClassForge:GROUP_ROSTER_UPDATE()
     self:BroadcastSelf("PARTY")
     self:BroadcastSelf("RAID")
+    if self.ScheduleMapMemberUpdate then
+        self:ScheduleMapMemberUpdate(0.05)
+    end
 end
 
 function ClassForge:GUILD_ROSTER_UPDATE()
@@ -184,6 +200,10 @@ function ClassForge:PLAYER_TARGET_CHANGED()
         if targetName then
             self:RequestSyncFromName(targetName)
         end
+    end
+
+    if self.ScheduleMapMemberUpdate then
+        self:ScheduleMapMemberUpdate(0)
     end
 end
 

@@ -26,18 +26,53 @@ function ClassForge:Trim(value)
     return (tostring(value):gsub("^%s*(.-)%s*$", "%1"))
 end
 
+function ClassForge:IsRealmAwareEnabled()
+    local profile = self:GetProfile()
+    local names = profile and profile.names or nil
+
+    if names and names.realmAware ~= nil then
+        return names.realmAware and true or false
+    end
+
+    return self.defaults.profile.names.realmAware and true or false
+end
+
+function ClassForge:GetNormalizedRealmName(name)
+    local trimmed = self:Trim(name)
+    if trimmed == "" then
+        return nil
+    end
+
+    return trimmed:gsub("%s+", ""):gsub("[^%a%d]", "")
+end
+
 function ClassForge:NormalizePlayerName(name)
     name = self:Trim(name)
     if name == "" then
         return nil
     end
 
-    name = name:gsub("%-.+$", "")
-    if name == "" then
+    local baseName, realmName = name:match("^([^%-]+)%-(.+)$")
+    if not baseName or baseName == "" then
+        baseName = name
+        realmName = nil
+    end
+
+    if baseName == "" then
         return nil
     end
 
-    return name:sub(1, 1):upper() .. name:sub(2):lower()
+    local normalized = baseName:sub(1, 1):upper() .. baseName:sub(2):lower()
+    if not self:IsRealmAwareEnabled() then
+        return normalized
+    end
+
+    realmName = self:GetNormalizedRealmName(realmName)
+    if not realmName or realmName == "" then
+        return normalized
+    end
+
+    return normalized .. "-" .. realmName
 end
 
 function ClassForge:GetPlayerKey(name)
@@ -152,6 +187,17 @@ function ClassForge:GetSourceLabel(data)
     return "Unknown"
 end
 
+function ClassForge:GetSourcePriority(source)
+    local priorities = {
+        self = 4,
+        addon = 3,
+        observed = 2,
+        who = 1,
+    }
+
+    return priorities[source] or 0
+end
+
 function ClassForge:IsConfirmedAddonUser(data)
     return data and (data.source == "addon" or data.source == "self")
 end
@@ -202,6 +248,58 @@ function ClassForge:ClearStaleCacheEntries(maxAgeSeconds)
     return removed
 end
 
+function ClassForge:MigrateDatabase()
+    ClassForgeDB = ClassForgeDB or {}
+    ClassForgeDB.profile = self:CopyDefaults(self.defaults.profile, ClassForgeDB.profile or {})
+    ClassForgeCache = ClassForgeCache or {}
+
+    local version = tonumber(ClassForgeDB.dbVersion) or 0
+
+    if version < 1 then
+        if ClassForgeDB.profile.targetProfileHidden ~= nil then
+            ClassForgeDB.profile.targetProfile = ClassForgeDB.profile.targetProfile or {}
+            ClassForgeDB.profile.targetProfile.hidden = ClassForgeDB.profile.targetProfileHidden and true or false
+            ClassForgeDB.profile.targetProfileHidden = nil
+        end
+        if ClassForgeDB.profile.targetProfileLocked ~= nil then
+            ClassForgeDB.profile.targetProfile = ClassForgeDB.profile.targetProfile or {}
+            ClassForgeDB.profile.targetProfile.locked = ClassForgeDB.profile.targetProfileLocked and true or false
+            ClassForgeDB.profile.targetProfileLocked = nil
+        end
+        version = 1
+    end
+
+    if version < 2 then
+        ClassForgeDB.profile.names = ClassForgeDB.profile.names or {}
+        if ClassForgeDB.profile.realmAware ~= nil and ClassForgeDB.profile.names.realmAware == nil then
+            ClassForgeDB.profile.names.realmAware = ClassForgeDB.profile.realmAware and true or false
+        end
+        ClassForgeDB.profile.realmAware = nil
+        version = 2
+    end
+
+    local rebuiltCache = {}
+
+    for key, data in pairs(ClassForgeCache) do
+        if type(data) == "table" then
+            local normalizedName = self:NormalizePlayerName(data.name or key)
+            data.name = normalizedName or data.name or key
+            data.color = self:SanitizeHex(data.color) or self.defaults.profile.color
+            data.role = self:NormalizeRole(data.role) or self.defaults.profile.role
+            data.className = self:Trim(data.className) ~= "" and self:Trim(data.className) or self.defaults.profile.className
+            data.order = self:Trim(data.order)
+            data.source = data.source or "observed"
+            data.updated = tonumber(data.updated) or time()
+            data.addonVersion = self:Trim(data.addonVersion)
+            rebuiltCache[self:GetPlayerKey(data.name or key) or key] = data
+        end
+    end
+
+    ClassForgeCache = rebuiltCache
+
+    ClassForgeDB.dbVersion = self.dbVersion
+end
+
 function ClassForge:GetDataForName(name)
     local key = self:GetPlayerKey(name)
     if not key or not ClassForgeCache then
@@ -233,8 +331,22 @@ function ClassForge:SetDataForName(name, data)
     local existing = ClassForgeCache[key] or {}
     local incomingUpdated = tonumber(data.updated) or time()
     local existingUpdated = tonumber(existing.updated) or 0
+    local incomingPriority = self:GetSourcePriority(data.source)
+    local existingPriority = self:GetSourcePriority(existing.source)
 
-    if existing.source == "addon" and data.source ~= "addon" and existingUpdated > incomingUpdated then
+    if UnitName("player") and key == self:GetPlayerKey(UnitName("player")) and data.source ~= "self" then
+        return existing
+    end
+
+    if existingUpdated > incomingUpdated then
+        return existing
+    end
+
+    if existingUpdated == incomingUpdated and existingPriority > incomingPriority then
+        return existing
+    end
+
+    if existing.source == "addon" and data.source ~= "addon" and existingPriority > incomingPriority then
         return existing
     end
 
