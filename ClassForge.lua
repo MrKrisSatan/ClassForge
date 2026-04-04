@@ -2,8 +2,10 @@ ClassForge = ClassForge or {}
 
 ClassForge.name = "ClassForge"
 ClassForge.prefix = "CLASSFORGE"
-ClassForge.version = "2.5.1"
+ClassForge.version = "2.5.2"
 ClassForge.dbVersion = 2
+ClassForge.homepage = "https://github.com/MrKrisSatan/ClassForge"
+ClassForge.releasesPage = "https://github.com/MrKrisSatan/ClassForge/releases"
 
 local addon = CreateFrame("Frame")
 ClassForge.frame = addon

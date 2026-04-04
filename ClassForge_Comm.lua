@@ -218,7 +218,13 @@ function ClassForge:CHAT_MSG_ADDON(prefix, message, _, sender)
         local key = self:GetPlayerKey(sender)
         if key and not self.versionWarnings[key] then
             self.versionWarnings[key] = true
-            self:Print((self:NormalizePlayerName(sender) or sender) .. " is using ClassForge " .. data.addonVersion .. ". Your version is " .. (self.version or "unknown") .. ".")
+            local normalizedSender = self:NormalizePlayerName(sender) or sender
+            if self:CompareVersions(data.addonVersion, self.version or "") > 0 then
+                self:Print("Newer ClassForge version detected: " .. data.addonVersion .. " from " .. normalizedSender .. ". You are on " .. (self.version or "unknown") .. ".")
+                self:Print("Download: " .. (self.releasesPage or self.homepage or "https://github.com/MrKrisSatan/ClassForge"))
+            else
+                self:Print(normalizedSender .. " is using ClassForge " .. data.addonVersion .. ". Your version is " .. (self.version or "unknown") .. ".")
+            end
         end
     end
     if self.ScheduleMapMemberUpdate then

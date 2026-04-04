@@ -198,6 +198,45 @@ function ClassForge:GetSourcePriority(source)
     return priorities[source] or 0
 end
 
+function ClassForge:ParseVersionParts(version)
+    local cleaned = self:Trim(version)
+    local major, minor, patch = cleaned:match("^(%d+)%.(%d+)%.(%d+)$")
+    if not major then
+        return nil
+    end
+
+    return tonumber(major) or 0, tonumber(minor) or 0, tonumber(patch) or 0
+end
+
+function ClassForge:CompareVersions(leftVersion, rightVersion)
+    if leftVersion == rightVersion then
+        return 0
+    end
+
+    local leftMajor, leftMinor, leftPatch = self:ParseVersionParts(leftVersion or "")
+    local rightMajor, rightMinor, rightPatch = self:ParseVersionParts(rightVersion or "")
+
+    if not leftMajor or not rightMajor then
+        if tostring(leftVersion or "") == tostring(rightVersion or "") then
+            return 0
+        end
+
+        return tostring(leftVersion or "") > tostring(rightVersion or "") and 1 or -1
+    end
+
+    if leftMajor ~= rightMajor then
+        return leftMajor > rightMajor and 1 or -1
+    end
+    if leftMinor ~= rightMinor then
+        return leftMinor > rightMinor and 1 or -1
+    end
+    if leftPatch ~= rightPatch then
+        return leftPatch > rightPatch and 1 or -1
+    end
+
+    return 0
+end
+
 function ClassForge:IsConfirmedAddonUser(data)
     return data and (data.source == "addon" or data.source == "self")
 end

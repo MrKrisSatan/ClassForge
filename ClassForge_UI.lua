@@ -111,6 +111,7 @@ function ClassForge:HandleSlash(message)
         self:Print("Source: " .. self:GetSourceLabel(data))
         self:Print("Realm-aware names: " .. (self:IsRealmAwareEnabled() and "On" or "Off"))
         self:Print("Version: " .. (self.version or "2.5.0"))
+        self:Print("Downloads: " .. (self.releasesPage or self.homepage))
         return
     end
 
