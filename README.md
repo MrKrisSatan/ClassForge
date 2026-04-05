@@ -43,3 +43,11 @@ What it does:
 - The target profile panel can now be hidden, shown, locked, unlocked, and reset.
 - Realm-aware naming can be enabled for servers that expose realm suffixes.
 - The options panel is split into Profile, Display, and Cache tabs.
+<br>
+<img width="437" height="570" alt="who" src="https://github.com/user-attachments/assets/88e6291c-8e28-419e-9a64-2953f8921909" />
+<img width="1077" height="825" alt="options3" src="https://github.com/user-attachments/assets/040b03ca-7a31-48f4-b5ca-92ce2c814497" />
+<img width="1065" height="818" alt="options2" src="https://github.com/user-attachments/assets/a5902fab-27d8-452f-83b1-b5e089d7595f" />
+<img width="1070" height="821" alt="options1" src="https://github.com/user-attachments/assets/5ba30417-164d-42e7-a01f-dfd97326fe41" />
+<img width="428" height="571" alt="guild" src="https://github.com/user-attachments/assets/31ffe614-0722-4c5d-b6db-bb9c712540be" />
+<img width="436" height="579" alt="friends" src="https://github.com/user-attachments/assets/a1940486-a2d2-4feb-8430-3c53940b775f" />
+
