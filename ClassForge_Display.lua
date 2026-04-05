@@ -73,7 +73,7 @@ function ClassForge:SetChatDecorationEnabled(enabled)
     ClassForgeDB.profile.chat.enabled = enabled and true or false
 end
 
-function ClassForge:DecorateChatMessage(_, message, sender, ...)
+function ClassForge:DecorateChatMessage(_, _, message, sender, ...)
     if not ClassForge:IsChatDecorationEnabled() or not sender or not message then
         return false, message, sender, ...
     end
