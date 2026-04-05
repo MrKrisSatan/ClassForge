@@ -155,9 +155,97 @@ end
 function ClassForge:RequestSyncFromFriends()
     local total = GetNumFriends() or 0
     for index = 1, total do
-        local friendName = GetFriendInfo(index)
+        local friendName, _, friendClass = GetFriendInfo(index)
+        if friendName and friendClass and not self:GetDataForName(friendName) then
+            self:SetDataForName(friendName, {
+                className = friendClass,
+                color = self:GuessColorFromClass(friendClass),
+                role = self:GuessRoleFromClass(friendClass),
+                faction = "",
+                updated = time(),
+                source = "observed",
+            })
+        end
+
         if friendName then
             self:RequestSyncFromName(friendName)
+        end
+    end
+end
+
+function ClassForge:RequestSyncFromGuild()
+    local total = GetNumGuildMembers and GetNumGuildMembers(true) or 0
+    for index = 1, total do
+        local fullName, _, _, _, className, _, _, _, online = GetGuildRosterInfo(index)
+        if fullName and className and not self:GetDataForName(fullName) then
+            self:SetDataForName(fullName, {
+                className = className,
+                color = self:GuessColorFromClass(className),
+                role = self:GuessRoleFromClass(className),
+                faction = "",
+                updated = time(),
+                source = "observed",
+            })
+        end
+
+        if fullName and online then
+            self:RequestSyncFromName(fullName)
+        end
+    end
+end
+
+function ClassForge:RequestSyncFromGroup()
+    local hasRaid = (GetNumRaidMembers and (GetNumRaidMembers() or 0) or 0) > 0
+
+    if hasRaid then
+        for index = 1, MAX_RAID_MEMBERS do
+            local unit = "raid" .. index
+            if UnitExists(unit) and UnitIsPlayer(unit) then
+                local name = UnitName(unit)
+                local className = select(2, UnitClass(unit))
+                local localizedClass = select(1, UnitClass(unit))
+
+                if name and localizedClass and not self:GetDataForName(name) then
+                    self:SetDataForName(name, {
+                        className = localizedClass,
+                        color = self:GuessColorFromClass(localizedClass or className),
+                        role = self:GuessRoleFromClass(localizedClass or className),
+                        faction = self:GetUnitFaction(unit),
+                        updated = time(),
+                        source = "observed",
+                    })
+                end
+
+                if name then
+                    self:RequestSyncFromName(name)
+                end
+            end
+        end
+
+        return
+    end
+
+    for index = 1, MAX_PARTY_MEMBERS do
+        local unit = "party" .. index
+        if UnitExists(unit) and UnitIsPlayer(unit) then
+            local name = UnitName(unit)
+            local className = select(2, UnitClass(unit))
+            local localizedClass = select(1, UnitClass(unit))
+
+            if name and localizedClass and not self:GetDataForName(name) then
+                self:SetDataForName(name, {
+                    className = localizedClass,
+                    color = self:GuessColorFromClass(localizedClass or className),
+                    role = self:GuessRoleFromClass(localizedClass or className),
+                    faction = self:GetUnitFaction(unit),
+                    updated = time(),
+                    source = "observed",
+                })
+            end
+
+            if name then
+                self:RequestSyncFromName(name)
+            end
         end
     end
 end
@@ -264,15 +352,24 @@ function ClassForge:CHAT_MSG_ADDON(prefix, message, _, sender)
     self:SetDataForName(sender, data)
     if data.addonVersion and data.addonVersion ~= "" and data.addonVersion ~= (self.version or "") then
         self.versionWarnings = self.versionWarnings or {}
+        self.versionReminder = self.versionReminder or { lastAlert = 0, newestVersion = "" }
         local key = self:GetPlayerKey(sender)
         if key and not self.versionWarnings[key] then
             self.versionWarnings[key] = true
             local normalizedSender = self:NormalizePlayerName(sender) or sender
             if self:CompareVersions(data.addonVersion, self.version or "") > 0 then
-                self:Print("Newer ClassForge version detected: " .. data.addonVersion .. " from " .. normalizedSender .. ". You are on " .. (self.version or "unknown") .. ".")
-                self:Print("Download: " .. (self.releasesPage or self.homepage or "https://github.com/MrKrisSatan/ClassForge"))
+                local now = time()
+                if self:CompareVersions(data.addonVersion, self.versionReminder.newestVersion or "") > 0 then
+                    self.versionReminder.newestVersion = data.addonVersion
+                end
+
+                if (now - (tonumber(self.versionReminder.lastAlert) or 0)) >= (30 * 60) then
+                    self.versionReminder.lastAlert = now
+                    self:Print(string.format(self:L("out_of_date"), (self.versionReminder.newestVersion or data.addonVersion), (self.version or self:L("unknown"))))
+                    self:Print(self:L("downloads_label") .. ": " .. (self.releasesPage or self.homepage or "https://github.com/MrKrisSatan/ClassForge"))
+                end
             else
-                self:Print(normalizedSender .. " is using ClassForge " .. data.addonVersion .. ". Your version is " .. (self.version or "unknown") .. ".")
+                self:Print(string.format(self:L("newer_user"), normalizedSender, data.addonVersion, (self.version or self:L("unknown"))))
             end
         end
     end

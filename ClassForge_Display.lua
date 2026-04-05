@@ -65,7 +65,7 @@ function ClassForge:SetTargetProfileLocked(locked)
     ClassForgeDB.profile.targetProfile.locked = locked and true or false
 
     if self.targetProfile and self.targetProfile.hintText then
-        self.targetProfile.hintText:SetText(locked and "Locked" or "Shift-drag")
+        self.targetProfile.hintText:SetText(locked and self:L("locked") or self:L("shift_drag"))
     end
 end
 
@@ -128,16 +128,16 @@ end
 
 function ClassForge:GetDataStatusText(data)
     if not data then
-        return "Unknown"
+        return self:L("unknown")
     end
 
     local parts = {
-        "Source: |cffffffff" .. self:GetSourceLabel(data) .. "|r",
-        "Updated: " .. self:FormatUpdatedTimeColored(data.updated),
+        self:L("source_label") .. ": |cffffffff" .. self:GetSourceLabel(data) .. "|r",
+        self:L("updated_label") .. ": " .. self:FormatUpdatedTimeColored(data.updated),
     }
 
     if data.addonVersion and data.addonVersion ~= "" then
-        parts[#parts + 1] = "Version: |cffffffff" .. data.addonVersion .. "|r"
+        parts[#parts + 1] = self:L("version_label") .. ": |cffffffff" .. data.addonVersion .. "|r"
     end
 
     return table.concat(parts, " |cff808080-|r ")
@@ -295,9 +295,9 @@ function ClassForge:CreateMinimapButton()
 
     button:SetScript("OnEnter", function(selfButton)
         GameTooltip:SetOwner(selfButton, "ANCHOR_LEFT")
-        GameTooltip:SetText("ClassForge")
-        GameTooltip:AddLine("Left-click: Open options", 1, 1, 1)
-        GameTooltip:AddLine("Drag: Move button", 1, 1, 1)
+        GameTooltip:SetText(ClassForge.name or "ClassForge")
+        GameTooltip:AddLine(ClassForge:L("left_click_open"), 1, 1, 1)
+        GameTooltip:AddLine(ClassForge:L("drag_move_button"), 1, 1, 1)
         GameTooltip:Show()
     end)
 
@@ -563,9 +563,9 @@ function ClassForge:AppendTooltipData(tooltip, data)
 
     tooltip.classForgeTooltipApplied = true
     tooltip:AddLine(" ")
-    tooltip:AddLine("Class: " .. self:GetColoredClassText(data))
-    tooltip:AddLine("Role: |cffffffff" .. (data.role or "DPS") .. "|r")
-    tooltip:AddLine("Faction: |cffffffff" .. self:GetFactionText(data) .. "|r")
+    tooltip:AddLine(self:L("class_label") .. ": " .. self:GetColoredClassText(data))
+    tooltip:AddLine(self:L("role_label") .. ": |cffffffff" .. self:GetRoleDisplayText(data.role) .. "|r")
+    tooltip:AddLine(self:L("faction_label") .. ": |cffffffff" .. self:GetFactionText(data) .. "|r")
     tooltip:AddLine(self:GetDataStatusText(data))
     tooltip:Show()
 end
@@ -581,9 +581,9 @@ function ClassForge:AppendMapTooltipData(tooltip, unit)
     end
 
     tooltip:AddLine(" ")
-    tooltip:AddLine("ClassForge: " .. self:GetColoredClassText(data))
-    tooltip:AddLine("Role: |cffffffff" .. (data.role or self.defaults.character.role) .. "|r")
-    tooltip:AddLine("Faction: |cffffffff" .. self:GetFactionText(data) .. "|r")
+    tooltip:AddLine((self.name or "ClassForge") .. ": " .. self:GetColoredClassText(data))
+    tooltip:AddLine(self:L("role_label") .. ": |cffffffff" .. self:GetRoleDisplayText(data.role) .. "|r")
+    tooltip:AddLine(self:L("faction_label") .. ": |cffffffff" .. self:GetFactionText(data) .. "|r")
     tooltip:AddLine(self:GetDataStatusText(data))
     tooltip:Show()
 end
@@ -877,10 +877,10 @@ function ClassForge:UpdateFriendsTooltip(button)
     local orderText = self.friendsTooltipExtras.orderText
     local updatedText = self.friendsTooltipExtras.updatedText
 
-    FriendsFrameTooltip_SetLine(classText, anchor, "Class: " .. self:GetColoredClassText(data), -8)
-    FriendsFrameTooltip_SetLine(roleText, classText, "Role: |cffffffff" .. (data.role or self.defaults.character.role) .. "|r", -2)
-    FriendsFrameTooltip_SetLine(orderText, roleText, "Faction: |cffffffff" .. self:GetFactionText(data) .. "|r", -2)
-    FriendsFrameTooltip_SetLine(updatedText, orderText, "Source: |cffffffff" .. self:GetSourceLabel(data) .. "|r |cff808080-|r Updated: " .. self:FormatUpdatedTimeColored(data.updated), -2)
+    FriendsFrameTooltip_SetLine(classText, anchor, self:L("class_label") .. ": " .. self:GetColoredClassText(data), -8)
+    FriendsFrameTooltip_SetLine(roleText, classText, self:L("role_label") .. ": |cffffffff" .. self:GetRoleDisplayText(data.role) .. "|r", -2)
+    FriendsFrameTooltip_SetLine(orderText, roleText, self:L("faction_label") .. ": |cffffffff" .. self:GetFactionText(data) .. "|r", -2)
+    FriendsFrameTooltip_SetLine(updatedText, orderText, self:L("source_label") .. ": |cffffffff" .. self:GetSourceLabel(data) .. "|r |cff808080-|r " .. self:L("updated_label") .. ": " .. self:FormatUpdatedTimeColored(data.updated), -2)
 
     FriendsTooltip:SetHeight(FriendsTooltip.height + FRIENDS_TOOLTIP_MARGIN_WIDTH)
     FriendsTooltip:SetWidth(min(FRIENDS_TOOLTIP_MAX_WIDTH, FriendsTooltip.maxWidth + FRIENDS_TOOLTIP_MARGIN_WIDTH))
@@ -1093,7 +1093,7 @@ function ClassForge:UpdateCharacterPanel()
     end
 
     local data = self:BuildProfileData()
-    local roleText = data.role or self.defaults.character.role
+    local roleText = self:GetRoleDisplayText(data.role)
     local factionText = self:GetFactionText(data)
 
     PaperDollFrame.ClassForgeInfo:SetText(self:GetColoredClassText(data) .. " |cff808080(|r" .. roleText .. " |cff808080-|r " .. factionText .. "|cff808080)|r")
@@ -1181,7 +1181,7 @@ function ClassForge:CreateTargetProfile()
     frame.refreshButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     frame.refreshButton:SetWidth(52)
     frame.refreshButton:SetHeight(18)
-    frame.refreshButton:SetText("Refresh")
+    frame.refreshButton:SetText(self:L("refresh"))
     frame.refreshButton:SetScript("OnClick", function()
         if UnitExists("target") and UnitIsPlayer("target") then
             local targetName = UnitName("target")
@@ -1194,7 +1194,7 @@ function ClassForge:CreateTargetProfile()
 
     frame.hintText = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     frame.hintText:SetPoint("BOTTOMRIGHT", -8, 8)
-    frame.hintText:SetText(self:IsTargetProfileLocked() and "Locked" or "Shift-drag")
+    frame.hintText:SetText(self:IsTargetProfileLocked() and self:L("locked") or self:L("shift_drag"))
 
     self.targetProfile = frame
     self:UpdateTargetProfileLayout()
@@ -1238,9 +1238,9 @@ function ClassForge:UpdateTargetProfile()
         return
     end
 
-    self.targetProfile.classText:SetText("Class: " .. self:GetColoredClassText(data))
-    self.targetProfile.roleText:SetText("Role: " .. (data.role or self.defaults.character.role))
-    self.targetProfile.orderText:SetText("Faction: " .. self:GetFactionText(data))
+    self.targetProfile.classText:SetText(self:L("class_label") .. ": " .. self:GetColoredClassText(data))
+    self.targetProfile.roleText:SetText(self:L("role_label") .. ": " .. self:GetRoleDisplayText(data.role))
+    self.targetProfile.orderText:SetText(self:L("faction_label") .. ": " .. self:GetFactionText(data))
     self.targetProfile.statusText:SetText(self:GetSourceLabel(data) .. " |cff808080-|r " .. self:FormatUpdatedTimeColored(data.updated))
     self:UpdateTargetProfileLayout()
     self.targetProfile:Show()
@@ -1292,5 +1292,5 @@ function ClassForge:UpdateInspectFrame()
     end
 
     local factionText = self:GetFactionText(data)
-    InspectPaperDollFrame.ClassForgeInfo:SetText(self:GetColoredClassText(data) .. " |cff808080(|r" .. (data.role or self.defaults.character.role) .. " |cff808080-|r " .. factionText .. " |cff808080-|r " .. self:GetSourceLabel(data) .. " |cff808080-|r " .. self:FormatUpdatedTimeColored(data.updated) .. "|cff808080)|r")
+    InspectPaperDollFrame.ClassForgeInfo:SetText(self:GetColoredClassText(data) .. " |cff808080(|r" .. self:GetRoleDisplayText(data.role) .. " |cff808080-|r " .. factionText .. " |cff808080-|r " .. self:GetSourceLabel(data) .. " |cff808080-|r " .. self:FormatUpdatedTimeColored(data.updated) .. "|cff808080)|r")
 end

@@ -125,6 +125,40 @@ function ClassForge:NormalizeRole(role)
     return nil
 end
 
+function ClassForge:GetAssignedGroupRole(unit)
+    unit = unit or "player"
+    if not UnitExists or not UnitExists(unit) then
+        return nil
+    end
+
+    if not UnitGroupRolesAssigned then
+        return nil
+    end
+
+    local assigned = UnitGroupRolesAssigned(unit)
+    assigned = self:Trim(assigned)
+    if assigned == "" or assigned == "NONE" then
+        return nil
+    end
+
+    if assigned == "TANK" then
+        return "Tank"
+    end
+    if assigned == "HEALER" then
+        return "Heal"
+    end
+    if assigned == "DAMAGER" then
+        return "DPS"
+    end
+
+    return self:NormalizeRole(assigned)
+end
+
+function ClassForge:GetCurrentRole()
+    return self:GetAssignedGroupRole("player")
+        or self.defaults.character.role
+end
+
 function ClassForge:NormalizeFaction(value)
     value = self:Trim(value)
     if value == "" then
@@ -152,11 +186,14 @@ end
 
 function ClassForge:GetFactionText(data)
     local faction = data and self:NormalizeFaction(data.faction) or ""
-    if faction ~= "" then
-        return faction
+    if faction == "Alliance" then
+        return self:L("alliance")
+    end
+    if faction == "Horde" then
+        return self:L("horde")
     end
 
-    return "Unknown"
+    return self:L("unknown")
 end
 
 function ClassForge:HexToRGB(hex)
@@ -185,7 +222,7 @@ end
 
 function ClassForge:GetColoredClassText(data)
     if not data or not data.className then
-        return "|cffffffffUnknown|r"
+        return "|cffffffff" .. self:L("unknown") .. "|r"
     end
 
     return string.format("|cff%s%s|r", self:SanitizeHex(data.color) or "FFFFFF", data.className)
@@ -194,12 +231,12 @@ end
 function ClassForge:FormatUpdatedTime(timestamp)
     local numeric = tonumber(timestamp)
     if not numeric or numeric <= 0 then
-        return "Unknown"
+        return self:L("unknown")
     end
 
     local diff = time() - numeric
     if diff <= 0 then
-        return "Just now"
+        return "0s"
     end
     if diff < 60 then
         return diff .. "s ago"
@@ -221,19 +258,19 @@ function ClassForge:GetSourceLabel(data)
     local source = data and data.source or nil
 
     if source == "self" then
-        return "You"
+        return self:L("you")
     end
     if source == "addon" then
-        return "Addon"
+        return self:L("addon")
     end
     if source == "who" then
         return "/who"
     end
     if source == "observed" then
-        return "Observed"
+        return self:L("observed")
     end
 
-    return "Unknown"
+    return self:L("unknown")
 end
 
 function ClassForge:GetSourcePriority(source)
