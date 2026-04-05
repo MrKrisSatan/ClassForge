@@ -132,6 +132,8 @@ function ClassForge:BroadcastSelf(channel, target)
     end
 
     local payload = self:SerializeData(self:RefreshPlayerCache())
+    self.syncState = self.syncState or { broadcasts = {}, whispers = {}, who = { lastRun = 0, lastComplete = 0 }, lastSync = 0 }
+    self.syncState.lastSync = time()
     SendAddonMessage(self.prefix, payload, channel, target)
 end
 
@@ -202,17 +204,50 @@ function ClassForge:ProcessWhoResults()
     end
 end
 
+function ClassForge:PrepareSilentWhoSync()
+    self.silentWhoUIState = {
+        friendsShown = FriendsFrame and FriendsFrame:IsShown() or false,
+        whoShown = WhoFrame and WhoFrame:IsShown() or false,
+    }
+
+    if SetWhoToUI then
+        SetWhoToUI(0)
+    end
+end
+
+function ClassForge:RestoreSilentWhoSync()
+    local state = self.silentWhoUIState
+    if not state then
+        return
+    end
+
+    if not state.friendsShown and FriendsFrame and FriendsFrame:IsShown() then
+        if HideUIPanel then
+            HideUIPanel(FriendsFrame)
+        else
+            FriendsFrame:Hide()
+        end
+    end
+
+    if not state.whoShown and WhoFrame and WhoFrame:IsShown() then
+        WhoFrame:Hide()
+    end
+
+    self.silentWhoUIState = nil
+    self.syncState = self.syncState or { broadcasts = {}, whispers = {}, who = { lastRun = 0, lastComplete = 0 }, lastSync = 0 }
+    self.syncState.who.lastComplete = time()
+end
+
 function ClassForge:PerformWhoSync()
     if not self:CanRunWhoSync() then
         return false
     end
 
     self.pendingWhoSync = true
-    if SetWhoToUI then
-        SetWhoToUI(0)
-    end
+    self.syncState = self.syncState or { broadcasts = {}, whispers = {}, who = { lastRun = 0, lastComplete = 0 }, lastSync = 0 }
+    self.syncState.lastSync = time()
+    self:PrepareSilentWhoSync()
     SendWho("")
-    self:ProcessWhoResults()
     return true
 end
 

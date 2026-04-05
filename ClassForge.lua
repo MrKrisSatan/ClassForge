@@ -2,8 +2,8 @@ ClassForge = ClassForge or {}
 
 ClassForge.name = "ClassForge"
 ClassForge.prefix = "CLASSFORGE"
-ClassForge.version = "2.5.6"
-ClassForge.dbVersion = 4
+ClassForge.version = "3.0.0"
+ClassForge.dbVersion = 5
 ClassForge.homepage = "https://github.com/MrKrisSatan/ClassForge"
 ClassForge.releasesPage = "https://github.com/MrKrisSatan/ClassForge/releases"
 
@@ -27,6 +27,7 @@ ClassForge.defaults = {
         targetProfile = {
             hidden = false,
             locked = false,
+            compact = false,
         },
         minimapButton = {
             angle = 225,
@@ -42,6 +43,13 @@ ClassForge.defaults = {
             broadcast = 10,
             whisper = 20,
             who = 30,
+        },
+        sync = {
+            autoWhoOnLogin = true,
+            autoWhoOnGroup = true,
+        },
+        colors = {
+            groupFrames = true,
         },
     },
 }
@@ -175,6 +183,9 @@ function ClassForge:RefreshAllDisplays()
     if self.UpdateFriendsList then
         self:UpdateFriendsList()
     end
+    if self.UpdatePartyFrameColors then
+        self:UpdatePartyFrameColors()
+    end
     if self.UpdateRaidBrowser then
         self:UpdateRaidBrowser()
     end
@@ -219,7 +230,9 @@ function ClassForge:PLAYER_LOGIN()
         whispers = {},
         who = {
             lastRun = 0,
+            lastComplete = 0,
         },
+        lastSync = 0,
     }
 
     self:EnsureCurrentCharacterProfile()
@@ -234,12 +247,17 @@ end
 
 function ClassForge:PLAYER_ENTERING_WORLD()
     self:RequestSyncFromFriends()
-    self:PerformWhoSync()
+    if self:IsAutoWhoOnLoginEnabled() then
+        self:PerformWhoSync()
+    end
 end
 
 function ClassForge:GROUP_ROSTER_UPDATE()
     self:BroadcastSelf("PARTY")
     self:BroadcastSelf("RAID")
+    if self:IsAutoWhoOnGroupEnabled() then
+        self:PerformWhoSync()
+    end
     if self.ScheduleMapMemberUpdate then
         self:ScheduleMapMemberUpdate(0.05)
     end
@@ -273,6 +291,9 @@ end
 
 function ClassForge:WHO_LIST_UPDATE()
     self:ProcessWhoResults()
+    if self.RestoreSilentWhoSync then
+        self:RestoreSilentWhoSync()
+    end
     self:UpdateWhoList()
 end
 

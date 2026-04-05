@@ -168,6 +168,21 @@ function ClassForge:HexToRGB(hex)
     return r / 255, g / 255, b / 255
 end
 
+function ClassForge:RGBToHex(red, green, blue)
+    local function clampChannel(value)
+        local numeric = tonumber(value) or 0
+        if numeric < 0 then
+            numeric = 0
+        elseif numeric > 1 then
+            numeric = 1
+        end
+
+        return math.floor((numeric * 255) + 0.5)
+    end
+
+    return string.format("%02X%02X%02X", clampChannel(red), clampChannel(green), clampChannel(blue))
+end
+
 function ClassForge:GetColoredClassText(data)
     if not data or not data.className then
         return "|cffffffffUnknown|r"
@@ -275,6 +290,87 @@ function ClassForge:IsConfirmedAddonUser(data)
     return data and (data.source == "addon" or data.source == "self")
 end
 
+function ClassForge:GetConfirmedAddonUserCount()
+    local total = 0
+
+    if not ClassForgeCache then
+        return total
+    end
+
+    for _, data in pairs(ClassForgeCache) do
+        if self:IsConfirmedAddonUser(data) then
+            total = total + 1
+        end
+    end
+
+    return total
+end
+
+function ClassForge:GetUpdatedTextColor(timestamp)
+    local numeric = tonumber(timestamp)
+    if not numeric or numeric <= 0 then
+        return "|cffff4040"
+    end
+
+    local diff = time() - numeric
+    if diff >= 7 * 24 * 60 * 60 then
+        return "|cffff4040"
+    end
+    if diff >= 24 * 60 * 60 then
+        return "|cffffcc00"
+    end
+
+    return "|cffffffff"
+end
+
+function ClassForge:FormatUpdatedTimeColored(timestamp)
+    return self:GetUpdatedTextColor(timestamp) .. self:FormatUpdatedTime(timestamp) .. "|r"
+end
+
+function ClassForge:IsAutoWhoOnLoginEnabled()
+    local profile = self:GetProfile()
+    local sync = profile and profile.sync or nil
+
+    if sync and sync.autoWhoOnLogin ~= nil then
+        return sync.autoWhoOnLogin and true or false
+    end
+
+    return self.defaults.profile.sync.autoWhoOnLogin and true or false
+end
+
+function ClassForge:IsAutoWhoOnGroupEnabled()
+    local profile = self:GetProfile()
+    local sync = profile and profile.sync or nil
+
+    if sync and sync.autoWhoOnGroup ~= nil then
+        return sync.autoWhoOnGroup and true or false
+    end
+
+    return self.defaults.profile.sync.autoWhoOnGroup and true or false
+end
+
+function ClassForge:IsGroupFrameColoringEnabled()
+    local profile = self:GetProfile()
+    local colors = profile and profile.colors or nil
+
+    if colors and colors.groupFrames ~= nil then
+        return colors.groupFrames and true or false
+    end
+
+    return self.defaults.profile.colors.groupFrames and true or false
+end
+
+function ClassForge:IsTargetProfileCompact()
+    local profile = self:GetProfile()
+    local targetProfile = profile and profile.targetProfile or nil
+
+    if targetProfile and targetProfile.compact ~= nil then
+        return targetProfile.compact and true or false
+    end
+
+    return self.defaults.profile.targetProfile.compact and true or false
+end
+
 function ClassForge:GetCacheEntryCount()
     local total = 0
 
@@ -379,6 +475,13 @@ function ClassForge:MigrateDatabase()
 
         ClassForgeDB.profile.order = nil
         version = 4
+    end
+
+    if version < 5 then
+        ClassForgeDB.profile.sync = self:CopyDefaults(self.defaults.profile.sync, ClassForgeDB.profile.sync or {})
+        ClassForgeDB.profile.colors = self:CopyDefaults(self.defaults.profile.colors, ClassForgeDB.profile.colors or {})
+        ClassForgeDB.profile.targetProfile = self:CopyDefaults(self.defaults.profile.targetProfile, ClassForgeDB.profile.targetProfile or {})
+        version = 5
     end
 
     local rebuiltCache = {}

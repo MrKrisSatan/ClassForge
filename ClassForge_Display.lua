@@ -5,6 +5,7 @@ function ClassForge:InitDisplay()
     self:HookGuildFrame()
     self:HookFriendsFrame()
     self:HookRaidBrowser()
+    self:HookPartyFrames()
     self:SetupMapMarkerTooltips()
     self:CreateMinimapButton()
     self:CreateCharacterPanel()
@@ -68,6 +69,16 @@ function ClassForge:SetTargetProfileLocked(locked)
     end
 end
 
+function ClassForge:SetTargetProfileCompact(compact)
+    ClassForgeDB.profile.targetProfile = ClassForgeDB.profile.targetProfile or {}
+    ClassForgeDB.profile.targetProfile.compact = compact and true or false
+
+    if self.targetProfile then
+        self:UpdateTargetProfileLayout()
+        self:UpdateTargetProfile()
+    end
+end
+
 function ClassForge:SetChatDecorationEnabled(enabled)
     ClassForgeDB.profile.chat = ClassForgeDB.profile.chat or {}
     ClassForgeDB.profile.chat.enabled = enabled and true or false
@@ -122,7 +133,7 @@ function ClassForge:GetDataStatusText(data)
 
     local parts = {
         "Source: |cffffffff" .. self:GetSourceLabel(data) .. "|r",
-        "Updated: |cffffffff" .. self:FormatUpdatedTime(data.updated) .. "|r",
+        "Updated: " .. self:FormatUpdatedTimeColored(data.updated),
     }
 
     if data.addonVersion and data.addonVersion ~= "" then
@@ -240,7 +251,7 @@ function ClassForge:CreateMinimapButton()
     button.dragStopTime = 0
     button:SetScript("OnDragStart", function(selfButton)
         selfButton.isDragging = true
-        selfButton:SetScript("OnUpdate", function()
+        selfButton:SetScript("OnUpdate", function(_, elapsed)
             local scale = Minimap:GetEffectiveScale()
             local cursorX, cursorY = GetCursorPosition()
             local centerX, centerY = Minimap:GetCenter()
@@ -250,8 +261,20 @@ function ClassForge:CreateMinimapButton()
 
             local x = cursorX / scale - centerX
             local y = cursorY / scale - centerY
-            local angle = math.deg(atan2(y, x))
-            ClassForge:SetMinimapButtonAngle(angle)
+            local targetAngle = math.deg(atan2(y, x))
+            local currentAngle = ClassForge:GetMinimapButtonAngle()
+            local delta = targetAngle - currentAngle
+
+            while delta > 180 do
+                delta = delta - 360
+            end
+            while delta < -180 do
+                delta = delta + 360
+            end
+
+            local smoothing = math.min(1, (elapsed or 0.016) * 8)
+            local nextAngle = currentAngle + (delta * smoothing)
+            ClassForge:SetMinimapButtonAngle(nextAngle)
             ClassForge:UpdateMinimapButtonPosition()
         end)
     end)
@@ -451,6 +474,22 @@ function ClassForge:SetupMapColorHooks()
             end
         end)
         self.mapColorTicker = ticker
+    end
+end
+
+function ClassForge:UpdatePartyFrameColors()
+    for index = 1, MAX_PARTY_MEMBERS do
+        local unit = "party" .. index
+        local nameFontString = _G["PartyMemberFrame" .. index .. "Name"]
+
+        if nameFontString and UnitExists(unit) and UnitIsPlayer(unit) then
+            local data = self:GetDataForUnit(unit)
+            if self:IsGroupFrameColoringEnabled() and data and data.color then
+                nameFontString:SetTextColor(self:HexToRGB(data.color))
+            else
+                nameFontString:SetTextColor(1, 0.82, 0)
+            end
+        end
     end
 end
 
@@ -686,6 +725,7 @@ function ClassForge:UpdateRaidBrowser()
         if button and classFontString and button:IsShown() and button.unit and UnitExists(button.unit) and UnitIsPlayer(button.unit) then
             local _, _, _, _, className, fileName, _, online, isDead = GetRaidRosterInfo(index)
             local data = self:GetDataForUnit(button.unit)
+            local nameFontString = _G["RaidGroupButton" .. index .. "Name"]
 
             if data and data.className and data.className ~= "" then
                 classFontString:SetText(data.className)
@@ -695,6 +735,13 @@ function ClassForge:UpdateRaidBrowser()
 
             local r, g, b = self:GetRaidBrowserClassColor(data, fileName, online, isDead)
             classFontString:SetTextColor(r, g, b)
+            if nameFontString then
+                if self:IsGroupFrameColoringEnabled() and online and not isDead and data and data.color then
+                    nameFontString:SetTextColor(self:HexToRGB(data.color))
+                else
+                    nameFontString:SetTextColor(r, g, b)
+                end
+            end
         end
     end
 end
@@ -724,6 +771,20 @@ function ClassForge:HookRaidBrowser()
     end
 
     self:UpdateRaidBrowser()
+end
+
+function ClassForge:HookPartyFrames()
+    if self.partyFrameHooked then
+        return
+    end
+
+    self.partyFrameHooked = true
+
+    if PartyMemberFrame_UpdateMember then
+        hooksecurefunc("PartyMemberFrame_UpdateMember", function()
+            ClassForge:UpdatePartyFrameColors()
+        end)
+    end
 end
 
 function ClassForge:EnsureFriendsTooltipExtras()
@@ -819,7 +880,7 @@ function ClassForge:UpdateFriendsTooltip(button)
     FriendsFrameTooltip_SetLine(classText, anchor, "Class: " .. self:GetColoredClassText(data), -8)
     FriendsFrameTooltip_SetLine(roleText, classText, "Role: |cffffffff" .. (data.role or self.defaults.character.role) .. "|r", -2)
     FriendsFrameTooltip_SetLine(orderText, roleText, "Faction: |cffffffff" .. self:GetFactionText(data) .. "|r", -2)
-    FriendsFrameTooltip_SetLine(updatedText, orderText, "Source: |cffffffff" .. self:GetSourceLabel(data) .. "|r |cff808080-|r Updated: |cffffffff" .. self:FormatUpdatedTime(data.updated) .. "|r", -2)
+    FriendsFrameTooltip_SetLine(updatedText, orderText, "Source: |cffffffff" .. self:GetSourceLabel(data) .. "|r |cff808080-|r Updated: " .. self:FormatUpdatedTimeColored(data.updated), -2)
 
     FriendsTooltip:SetHeight(FriendsTooltip.height + FRIENDS_TOOLTIP_MARGIN_WIDTH)
     FriendsTooltip:SetWidth(min(FRIENDS_TOOLTIP_MAX_WIDTH, FriendsTooltip.maxWidth + FRIENDS_TOOLTIP_MARGIN_WIDTH))
@@ -1072,8 +1133,8 @@ function ClassForge:CreateTargetProfile()
     end
 
     local frame = CreateFrame("Frame", "ClassForgeTargetProfile", TargetFrame)
-    frame:SetWidth(200)
-    frame:SetHeight(74)
+    frame:SetWidth(220)
+    frame:SetHeight(92)
     frame:SetFrameStrata(TargetFrame:GetFrameStrata())
     frame:SetFrameLevel(TargetFrame:GetFrameLevel() + 5)
     frame:SetClampedToScreen(true)
@@ -1112,12 +1173,53 @@ function ClassForge:CreateTargetProfile()
     frame.orderText:SetPoint("TOPLEFT", frame.roleText, "BOTTOMLEFT", 0, -6)
     frame.orderText:SetJustifyH("LEFT")
 
+    frame.statusText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    frame.statusText:SetPoint("TOPLEFT", frame.orderText, "BOTTOMLEFT", 0, -6)
+    frame.statusText:SetJustifyH("LEFT")
+    frame.statusText:SetWidth(190)
+
+    frame.refreshButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    frame.refreshButton:SetWidth(52)
+    frame.refreshButton:SetHeight(18)
+    frame.refreshButton:SetText("Refresh")
+    frame.refreshButton:SetScript("OnClick", function()
+        if UnitExists("target") and UnitIsPlayer("target") then
+            local targetName = UnitName("target")
+            if targetName then
+                ClassForge:RequestSyncFromName(targetName)
+            end
+            ClassForge:PerformWhoSync()
+        end
+    end)
+
     frame.hintText = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     frame.hintText:SetPoint("BOTTOMRIGHT", -8, 8)
     frame.hintText:SetText(self:IsTargetProfileLocked() and "Locked" or "Shift-drag")
 
     self.targetProfile = frame
+    self:UpdateTargetProfileLayout()
     self:ApplyTargetProfilePosition()
+end
+
+function ClassForge:UpdateTargetProfileLayout()
+    if not self.targetProfile then
+        return
+    end
+
+    if self:IsTargetProfileCompact() then
+        self.targetProfile:SetWidth(190)
+        self.targetProfile:SetHeight(62)
+        self.targetProfile.orderText:Hide()
+        self.targetProfile.statusText:Hide()
+    else
+        self.targetProfile:SetWidth(220)
+        self.targetProfile:SetHeight(92)
+        self.targetProfile.orderText:Show()
+        self.targetProfile.statusText:Show()
+    end
+
+    self.targetProfile.refreshButton:ClearAllPoints()
+    self.targetProfile.refreshButton:SetPoint("TOPRIGHT", -8, -8)
 end
 
 function ClassForge:UpdateTargetProfile()
@@ -1138,7 +1240,9 @@ function ClassForge:UpdateTargetProfile()
 
     self.targetProfile.classText:SetText("Class: " .. self:GetColoredClassText(data))
     self.targetProfile.roleText:SetText("Role: " .. (data.role or self.defaults.character.role))
-    self.targetProfile.orderText:SetText("Faction: " .. self:GetFactionText(data) .. " |cff808080-|r " .. self:GetSourceLabel(data) .. " |cff808080-|r " .. self:FormatUpdatedTime(data.updated))
+    self.targetProfile.orderText:SetText("Faction: " .. self:GetFactionText(data))
+    self.targetProfile.statusText:SetText(self:GetSourceLabel(data) .. " |cff808080-|r " .. self:FormatUpdatedTimeColored(data.updated))
+    self:UpdateTargetProfileLayout()
     self.targetProfile:Show()
 end
 
@@ -1188,5 +1292,5 @@ function ClassForge:UpdateInspectFrame()
     end
 
     local factionText = self:GetFactionText(data)
-    InspectPaperDollFrame.ClassForgeInfo:SetText(self:GetColoredClassText(data) .. " |cff808080(|r" .. (data.role or self.defaults.character.role) .. " |cff808080-|r " .. factionText .. " |cff808080-|r " .. self:GetSourceLabel(data) .. " |cff808080-|r " .. self:FormatUpdatedTime(data.updated) .. "|cff808080)|r")
+    InspectPaperDollFrame.ClassForgeInfo:SetText(self:GetColoredClassText(data) .. " |cff808080(|r" .. (data.role or self.defaults.character.role) .. " |cff808080-|r " .. factionText .. " |cff808080-|r " .. self:GetSourceLabel(data) .. " |cff808080-|r " .. self:FormatUpdatedTimeColored(data.updated) .. "|cff808080)|r")
 end

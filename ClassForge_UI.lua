@@ -100,7 +100,7 @@ function ClassForge:HandleSlash(message)
         self:Print("Faction: " .. self:GetFactionText(data))
         self:Print("Source: " .. self:GetSourceLabel(data))
         self:Print("Realm-aware names: " .. (self:IsRealmAwareEnabled() and "On" or "Off"))
-        self:Print("Version: " .. (self.version or "2.5.0"))
+        self:Print("Version: " .. (self.version or "3.0.0"))
         self:Print("Downloads: " .. (self.releasesPage or self.homepage))
         return
     end
@@ -293,8 +293,123 @@ function ClassForge:CreateOptionsPanel()
     local cache = createTab("cache", "Cache", 232)
 
     local classBox = createEditBox(overview, 220, 30, "Custom class name", 0, 0)
+    local classPresets = {
+        { name = "Death Knight", color = "C41E3A" },
+        { name = "Demon Hunter", color = "A330C9" },
+        { name = "Druid", color = "FF7C0A" },
+        { name = "Evoker", color = "33937F" },
+        { name = "Hunter", color = "AAD372" },
+        { name = "Mage", color = "3FC7EB" },
+        { name = "Monk", color = "00FF98" },
+        { name = "Paladin", color = "F48CBA" },
+        { name = "Priest", color = "FFFFFF" },
+        { name = "Rogue", color = "FFF468" },
+        { name = "Shaman", color = "0070DD" },
+        { name = "Warlock", color = "8788EE" },
+        { name = "Warrior", color = "C69B6D" },
+        { name = "Spell Breaker", color = "7DF9FF" },
+        { name = "Abyss Walker", color = "1A1A2E" },
+        { name = "Bloodbinder", color = "8B0000" },
+        { name = "Chronomancer", color = "FFD700" },
+        { name = "Grave Warden", color = "4B5320" },
+        { name = "Storm Herald", color = "00BFFF" },
+        { name = "Runesmith", color = "B87333" },
+        { name = "Soul Weaver", color = "6A0DAD" },
+        { name = "Beast Warden", color = "556B2F" },
+        { name = "Voidcaller", color = "2F4F4F" },
+        { name = "Sun Cleric", color = "FFDE59" },
+        { name = "Frostbinder", color = "AFEEEE" },
+        { name = "Ashbringer", color = "A9A9A9" },
+        { name = "Hexblade", color = "3B0A45" },
+        { name = "Spirit Dancer", color = "7FFFD4" },
+        { name = "Iron Vanguard", color = "708090" },
+        { name = "Plaguebringer", color = "556B2F" },
+        { name = "Starcaller", color = "4169E1" },
+        { name = "Shadow Duelist", color = "2B2B2B" },
+        { name = "Ember Knight", color = "FF4500" },
+        { name = "Tide Sage", color = "20B2AA" },
+        { name = "Bone Oracle", color = "F5F5DC" },
+        { name = "Thunder Reaver", color = "1E90FF" },
+        { name = "Nether Alchemist", color = "9932CC" },
+        { name = "Wildheart", color = "228B22" },
+        { name = "Doom Harbinger", color = "800000" },
+    }
+    local updatePreview
+
+    local presetButton = CreateFrame("Button", nil, overview, "UIPanelButtonTemplate")
+    presetButton:SetWidth(64)
+    presetButton:SetHeight(22)
+    presetButton:SetPoint("LEFT", classBox, "RIGHT", 10, 0)
+    presetButton:SetText("Presets")
+    local presetPopup = CreateFrame("Frame", "ClassForgePresetPopup", overview)
+    presetPopup:SetWidth(250)
+    presetPopup:SetHeight(220)
+    presetPopup:SetPoint("TOPLEFT", presetButton, "BOTTOMLEFT", 0, -4)
+    presetPopup:SetFrameStrata("DIALOG")
+    presetPopup:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true,
+        tileSize = 16,
+        edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 },
+    })
+    presetPopup:SetBackdropColor(0, 0, 0, 0.95)
+    presetPopup:Hide()
+
+    local presetScrollFrame = CreateFrame("ScrollFrame", "ClassForgePresetScrollFrame", presetPopup, "UIPanelScrollFrameTemplate")
+    presetScrollFrame:SetPoint("TOPLEFT", 8, -8)
+    presetScrollFrame:SetPoint("BOTTOMRIGHT", -28, 8)
+
+    local presetContent = CreateFrame("Frame", nil, presetScrollFrame)
+    presetContent:SetWidth(214)
+    presetContent:SetHeight(#classPresets * 22)
+    presetScrollFrame:SetScrollChild(presetContent)
     local colorBox = createEditBox(overview, 220, 30, "Class color hex", 0, -62)
-    local roleBox = createEditBox(overview, 220, 30, "Role (Heal/Tank/DPS)", 0, -124)
+
+    local roleLabel = overview:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    roleLabel:SetPoint("TOPLEFT", 0, -124)
+    roleLabel:SetText("Role")
+
+    local roleDropdown = CreateFrame("Frame", "ClassForgeRoleDropdown", overview, "UIDropDownMenuTemplate")
+    roleDropdown:SetPoint("TOPLEFT", roleLabel, "BOTTOMLEFT", -16, -2)
+    local roleOptions = {
+        { text = "Tank", value = "Tank" },
+        { text = "Healer", value = "Heal" },
+        { text = "Damage", value = "DPS" },
+    }
+
+    local function getRoleLabel(value)
+        for _, option in ipairs(roleOptions) do
+            if option.value == value then
+                return option.text
+            end
+        end
+
+        return "Damage"
+    end
+
+    local function setSelectedRole(value)
+        local normalized = ClassForge:NormalizeRole(value) or ClassForge.defaults.character.role
+        roleDropdown.selectedValue = normalized
+        UIDropDownMenu_SetText(roleDropdown, getRoleLabel(normalized))
+    end
+
+    UIDropDownMenu_SetWidth(roleDropdown, 190)
+    UIDropDownMenu_Initialize(roleDropdown, function(self, level)
+        local info = UIDropDownMenu_CreateInfo()
+        for _, option in ipairs(roleOptions) do
+            info.text = option.text
+            info.value = option.value
+            info.func = function()
+                setSelectedRole(option.value)
+                updatePreview()
+            end
+            info.checked = (roleDropdown.selectedValue == option.value)
+            UIDropDownMenu_AddButton(info, level)
+        end
+    end)
+
     local factionLabel = overview:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     factionLabel:SetPoint("TOPLEFT", 0, -186)
     factionLabel:SetText("Faction")
@@ -305,12 +420,18 @@ function ClassForge:CreateOptionsPanel()
     factionValue:SetJustifyH("LEFT")
 
     local preview = overview:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-    preview:SetPoint("TOPLEFT", 280, -28)
+    preview:SetPoint("TOPLEFT", 360, -28)
     preview:SetWidth(260)
     preview:SetJustifyH("LEFT")
 
-    local function updatePreview()
-        local role = ClassForge:NormalizeRole(roleBox:GetText()) or ClassForge.defaults.character.role
+    local colorPickerButton = CreateFrame("Button", nil, overview, "UIPanelButtonTemplate")
+    colorPickerButton:SetWidth(52)
+    colorPickerButton:SetHeight(22)
+    colorPickerButton:SetPoint("LEFT", colorBox, "RIGHT", 10, 0)
+    colorPickerButton:SetText("Pick")
+
+    updatePreview = function()
+        local role = roleDropdown.selectedValue or ClassForge.defaults.character.role
         local data = {
             className = ClassForge:Trim(classBox:GetText()) ~= "" and ClassForge:Trim(classBox:GetText()) or ClassForge.defaults.character.className,
             color = ClassForge:SanitizeHex(colorBox:GetText()) or ClassForge.defaults.character.color,
@@ -321,6 +442,68 @@ function ClassForge:CreateOptionsPanel()
         preview:SetText("Preview\n" .. ClassForge:GetColoredClassText(data) .. "\nRole: " .. data.role .. "\nFaction: " .. ClassForge:GetFactionText(data))
     end
 
+    for index, preset in ipairs(classPresets) do
+        local row = CreateFrame("Button", nil, presetContent)
+        row:SetWidth(214)
+        row:SetHeight(20)
+        row:SetPoint("TOPLEFT", 0, -((index - 1) * 22))
+
+        row.text = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+        row.text:SetPoint("LEFT", 4, 0)
+        row.text:SetJustifyH("LEFT")
+        row.text:SetText(string.format("%s  (#%s)", preset.name, preset.color))
+
+        row.highlight = row:CreateTexture(nil, "HIGHLIGHT")
+        row.highlight:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+        row.highlight:SetBlendMode("ADD")
+        row.highlight:SetAllPoints(row)
+
+        row:SetScript("OnClick", function()
+            classBox:SetText(preset.name)
+            colorBox:SetText(preset.color)
+            presetPopup:Hide()
+            updatePreview()
+        end)
+    end
+
+    presetButton:SetScript("OnClick", function()
+        if presetPopup:IsShown() then
+            presetPopup:Hide()
+        else
+            presetPopup:Show()
+        end
+    end)
+
+    local function applyPickedColor(red, green, blue)
+        local hex = ClassForge:RGBToHex(red, green, blue)
+        colorBox:SetText(hex)
+        updatePreview()
+    end
+
+    colorPickerButton:SetScript("OnClick", function()
+        if not ColorPickerFrame then
+            return
+        end
+
+        local initialHex = ClassForge:SanitizeHex(colorBox:GetText()) or ClassForge.defaults.character.color
+        local red, green, blue = ClassForge:HexToRGB(initialHex)
+
+        ColorPickerFrame.hasOpacity = nil
+        ColorPickerFrame.opacity = 0
+        ColorPickerFrame.previousValues = { red, green, blue }
+        ColorPickerFrame.func = function()
+            local currentRed, currentGreen, currentBlue = ColorPickerFrame:GetColorRGB()
+            applyPickedColor(currentRed, currentGreen, currentBlue)
+        end
+        ColorPickerFrame.cancelFunc = function(previousValues)
+            if previousValues then
+                applyPickedColor(previousValues[1], previousValues[2], previousValues[3])
+            end
+        end
+        ColorPickerFrame:SetColorRGB(red, green, blue)
+        ColorPickerFrame:Show()
+    end)
+
     local saveButton = CreateFrame("Button", nil, overview, "UIPanelButtonTemplate")
     saveButton:SetWidth(100)
     saveButton:SetHeight(24)
@@ -329,7 +512,7 @@ function ClassForge:CreateOptionsPanel()
     saveButton:SetScript("OnClick", function()
         local className = ClassForge:Trim(classBox:GetText())
         local color = ClassForge:SanitizeHex(colorBox:GetText())
-        local role = ClassForge:NormalizeRole(roleBox:GetText())
+        local role = roleDropdown.selectedValue or ClassForge.defaults.character.role
 
         local characterProfile = ClassForge:GetCharacterProfile()
         characterProfile.className = className ~= "" and className or ClassForge.defaults.character.className
@@ -360,7 +543,7 @@ function ClassForge:CreateOptionsPanel()
     resetButton:SetScript("OnClick", function()
         classBox:SetText(ClassForge.defaults.character.className)
         colorBox:SetText(ClassForge.defaults.character.color)
-        roleBox:SetText(ClassForge.defaults.character.role)
+        setSelectedRole(ClassForge.defaults.character.role)
         factionValue:SetText(ClassForge:GetFactionText(ClassForge:BuildProfileData()))
         updatePreview()
     end)
@@ -405,8 +588,22 @@ function ClassForge:CreateOptionsPanel()
         ClassForge:RefreshAllDisplays()
     end)
 
+    local autoWhoLoginToggle = CreateFrame("CheckButton", "ClassForgeOptionsAutoWhoLoginToggle", display, "UICheckButtonTemplate")
+    autoWhoLoginToggle:SetPoint("TOPLEFT", realmToggle, "BOTTOMLEFT", 0, -10)
+    _G[autoWhoLoginToggle:GetName() .. "Text"]:SetText("Run background /who sync on login")
+    autoWhoLoginToggle:SetScript("OnClick", function(selfButton)
+        ClassForgeDB.profile.sync.autoWhoOnLogin = selfButton:GetChecked() and true or false
+    end)
+
+    local autoWhoGroupToggle = CreateFrame("CheckButton", "ClassForgeOptionsAutoWhoGroupToggle", display, "UICheckButtonTemplate")
+    autoWhoGroupToggle:SetPoint("TOPLEFT", autoWhoLoginToggle, "BOTTOMLEFT", 0, -10)
+    _G[autoWhoGroupToggle:GetName() .. "Text"]:SetText("Run background /who sync on group changes")
+    autoWhoGroupToggle:SetScript("OnClick", function(selfButton)
+        ClassForgeDB.profile.sync.autoWhoOnGroup = selfButton:GetChecked() and true or false
+    end)
+
     local panelVisibleToggle = CreateFrame("CheckButton", "ClassForgeOptionsPanelVisibleToggle", display, "UICheckButtonTemplate")
-    panelVisibleToggle:SetPoint("TOPLEFT", realmToggle, "BOTTOMLEFT", 0, -10)
+    panelVisibleToggle:SetPoint("TOPLEFT", autoWhoGroupToggle, "BOTTOMLEFT", 0, -10)
     _G[panelVisibleToggle:GetName() .. "Text"]:SetText("Show target profile panel")
     panelVisibleToggle:SetScript("OnClick", function(selfButton)
         ClassForge:SetTargetProfileHidden(not selfButton:GetChecked())
@@ -419,10 +616,25 @@ function ClassForge:CreateOptionsPanel()
         ClassForge:SetTargetProfileLocked(selfButton:GetChecked())
     end)
 
+    local panelCompactToggle = CreateFrame("CheckButton", "ClassForgeOptionsPanelCompactToggle", display, "UICheckButtonTemplate")
+    panelCompactToggle:SetPoint("TOPLEFT", panelLockToggle, "BOTTOMLEFT", 0, -10)
+    _G[panelCompactToggle:GetName() .. "Text"]:SetText("Use compact target profile panel")
+    panelCompactToggle:SetScript("OnClick", function(selfButton)
+        ClassForge:SetTargetProfileCompact(selfButton:GetChecked())
+    end)
+
+    local groupFrameColorsToggle = CreateFrame("CheckButton", "ClassForgeOptionsGroupColorsToggle", display, "UICheckButtonTemplate")
+    groupFrameColorsToggle:SetPoint("TOPLEFT", panelCompactToggle, "BOTTOMLEFT", 0, -10)
+    _G[groupFrameColorsToggle:GetName() .. "Text"]:SetText("Color party and raid frame names with custom class color")
+    groupFrameColorsToggle:SetScript("OnClick", function(selfButton)
+        ClassForgeDB.profile.colors.groupFrames = selfButton:GetChecked() and true or false
+        ClassForge:RefreshAllDisplays()
+    end)
+
     local panelResetButton = CreateFrame("Button", nil, display, "UIPanelButtonTemplate")
     panelResetButton:SetWidth(140)
     panelResetButton:SetHeight(24)
-    panelResetButton:SetPoint("TOPLEFT", panelLockToggle, "BOTTOMLEFT", 4, -14)
+    panelResetButton:SetPoint("TOPLEFT", groupFrameColorsToggle, "BOTTOMLEFT", 4, -14)
     panelResetButton:SetText("Reset Panel")
     panelResetButton:SetScript("OnClick", function()
         ClassForge:ResetTargetProfilePosition()
@@ -494,6 +706,17 @@ function ClassForge:CreateOptionsPanel()
     browserTitle:SetPoint("TOPLEFT", clearStaleButton, "BOTTOMLEFT", 0, -22)
     browserTitle:SetText("Known Players")
 
+    local updateKnownPlayersBrowser
+
+    local browserSearchBox = CreateFrame("EditBox", nil, cache, "InputBoxTemplate")
+    browserSearchBox:SetAutoFocus(false)
+    browserSearchBox:SetWidth(220)
+    browserSearchBox:SetHeight(20)
+    browserSearchBox:SetPoint("LEFT", browserTitle, "RIGHT", 12, 0)
+    browserSearchBox:SetScript("OnTextChanged", function()
+        updateKnownPlayersBrowser()
+    end)
+
     local browserFrame = CreateFrame("ScrollFrame", "ClassForgeKnownPlayersScrollFrame", cache, "UIPanelScrollFrameTemplate")
     browserFrame:SetPoint("TOPLEFT", browserTitle, "BOTTOMLEFT", 0, -8)
     browserFrame:SetWidth(530)
@@ -510,9 +733,10 @@ function ClassForge:CreateOptionsPanel()
     browserText:SetJustifyH("LEFT")
     browserText:SetJustifyV("TOP")
 
-    local function updateKnownPlayersBrowser()
+    updateKnownPlayersBrowser = function()
         local entries = {}
         local lines = { "Name | Class | Role | Source | Version | Updated" }
+        local filter = string.lower(ClassForge:Trim(browserSearchBox:GetText()))
 
         if ClassForgeCache then
             for _, data in pairs(ClassForgeCache) do
@@ -531,18 +755,28 @@ function ClassForge:CreateOptionsPanel()
         end
 
         for _, data in ipairs(entries) do
-            lines[#lines + 1] = string.format(
-                "%s | %s | %s | %s | %s | %s",
-                data.name or "Unknown",
-                data.className or "Unknown",
-                data.role or "-",
-                ClassForge:GetSourceLabel(data),
-                (data.addonVersion and data.addonVersion ~= "") and data.addonVersion or "-",
-                ClassForge:FormatUpdatedTime(data.updated)
-            )
+            local nameText = data.name or "Unknown"
+            local classText = data.className or "Unknown"
+            if filter == ""
+                or string.find(string.lower(nameText), filter, 1, true)
+                or string.find(string.lower(classText), filter, 1, true) then
+                lines[#lines + 1] = string.format(
+                    "%s | %s | %s | %s | %s | %s",
+                    nameText,
+                    classText,
+                    data.role or "-",
+                    ClassForge:GetSourceLabel(data),
+                    (data.addonVersion and data.addonVersion ~= "") and data.addonVersion or "-",
+                    ClassForge:FormatUpdatedTime(data.updated)
+                )
+            end
         end
 
-        browserText:SetText(table.concat(lines, "\n"))
+        if #lines == 1 then
+            browserText:SetText("No matching players found.")
+        else
+            browserText:SetText(table.concat(lines, "\n"))
+        end
         browserContent:SetHeight(math.max(170, browserText:GetStringHeight() + 10))
     end
 
@@ -561,10 +795,21 @@ function ClassForge:CreateOptionsPanel()
     end)
 
     local function refreshStatusText()
-        statusText:SetText("Addon version: " .. (ClassForge.version or "2.5.0") .. "\nSync protocol: CF3\nUse /cf sync to refresh your record and query nearby players.")
+        local syncState = ClassForge.syncState or {}
+        local whoState = syncState.who or {}
+        statusText:SetText(
+            "Addon version: " .. (ClassForge.version or "3.0.0")
+            .. "\nSync protocol: CF3"
+            .. "\nLast sync: " .. ClassForge:FormatUpdatedTime(syncState.lastSync)
+            .. " |cff808080-|r Last /who: " .. ClassForge:FormatUpdatedTime(whoState.lastComplete)
+            .. " |cff808080-|r Addon users: " .. ClassForge:GetConfirmedAddonUserCount()
+            .. "\nUse /cf sync to refresh your record and query nearby players."
+        )
         displayStatus:SetText("Minimap button: " .. (ClassForge:IsMinimapButtonHidden() and "Hidden" or "Shown")
             .. " |cff808080-|r Target profile: " .. (ClassForge:IsTargetProfileHidden() and "Hidden" or "Shown")
             .. " |cff808080-|r Locked: " .. (ClassForge:IsTargetProfileLocked() and "Yes" or "No")
+            .. " |cff808080-|r Compact: " .. (ClassForge:IsTargetProfileCompact() and "Yes" or "No")
+            .. " |cff808080-|r Group colors: " .. (ClassForge:IsGroupFrameColoringEnabled() and "On" or "Off")
             .. " |cff808080-|r Realm-aware names: " .. (ClassForge:IsRealmAwareEnabled() and "On" or "Off"))
     end
 
@@ -573,13 +818,17 @@ function ClassForge:CreateOptionsPanel()
         local characterProfile = ClassForge:GetCharacterProfile()
         classBox:SetText(characterProfile.className or ClassForge.defaults.character.className)
         colorBox:SetText(characterProfile.color or ClassForge.defaults.character.color)
-        roleBox:SetText(characterProfile.role or ClassForge.defaults.character.role)
+        setSelectedRole(characterProfile.role or ClassForge.defaults.character.role)
         factionValue:SetText(ClassForge:GetFactionText(ClassForge:BuildProfileData()))
         minimapToggle:SetChecked(not ClassForge:IsMinimapButtonHidden())
         chatToggle:SetChecked(ClassForge:IsChatDecorationEnabled())
         realmToggle:SetChecked(ClassForge:IsRealmAwareEnabled())
+        autoWhoLoginToggle:SetChecked(ClassForge:IsAutoWhoOnLoginEnabled())
+        autoWhoGroupToggle:SetChecked(ClassForge:IsAutoWhoOnGroupEnabled())
         panelVisibleToggle:SetChecked(not ClassForge:IsTargetProfileHidden())
         panelLockToggle:SetChecked(ClassForge:IsTargetProfileLocked())
+        panelCompactToggle:SetChecked(ClassForge:IsTargetProfileCompact())
+        groupFrameColorsToggle:SetChecked(ClassForge:IsGroupFrameColoringEnabled())
         updatePreview()
         updateCacheDisplay()
         updateKnownPlayersBrowser()
