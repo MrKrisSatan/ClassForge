@@ -31,7 +31,6 @@ function ClassForge:HandleSlash(message)
         self:Print("/cf setclass <name>")
         self:Print("/cf setcolor <hex>")
         self:Print("/cf setrole <role>")
-        self:Print("/cf setorder <order>")
         self:Print("/cf realmaware on|off")
         self:Print("/cf show")
         self:Print("/cf sync")
@@ -93,21 +92,12 @@ function ClassForge:HandleSlash(message)
         return
     end
 
-    if command == "setorder" then
-        self:GetCharacterProfile().order = self:Trim(rest)
-        self:RefreshPlayerCache()
-        self:BroadcastStartup()
-        self:RefreshAllDisplays()
-        self:Print("Order updated.")
-        return
-    end
-
     if command == "show" then
         local data = self:BuildProfileData()
         self:Print("Class: " .. data.className)
         self:Print("Color: #" .. data.color)
         self:Print("Role: " .. data.role)
-        self:Print("Order: " .. (data.order ~= "" and data.order or "-"))
+        self:Print("Faction: " .. self:GetFactionText(data))
         self:Print("Source: " .. self:GetSourceLabel(data))
         self:Print("Realm-aware names: " .. (self:IsRealmAwareEnabled() and "On" or "Off"))
         self:Print("Version: " .. (self.version or "2.5.0"))
@@ -222,7 +212,6 @@ function ClassForge:HandleSlash(message)
         characterProfile.className = self.defaults.character.className
         characterProfile.color = self.defaults.character.color
         characterProfile.role = self.defaults.character.role
-        characterProfile.order = self.defaults.character.order
         self:RefreshPlayerCache()
         self:BroadcastStartup()
         self:RefreshAllDisplays()
@@ -306,7 +295,14 @@ function ClassForge:CreateOptionsPanel()
     local classBox = createEditBox(overview, 220, 30, "Custom class name", 0, 0)
     local colorBox = createEditBox(overview, 220, 30, "Class color hex", 0, -62)
     local roleBox = createEditBox(overview, 220, 30, "Role (Heal/Tank/DPS)", 0, -124)
-    local orderBox = createEditBox(overview, 220, 30, "Order", 0, -186)
+    local factionLabel = overview:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    factionLabel:SetPoint("TOPLEFT", 0, -186)
+    factionLabel:SetText("Faction")
+
+    local factionValue = overview:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    factionValue:SetPoint("TOPLEFT", factionLabel, "BOTTOMLEFT", 0, -8)
+    factionValue:SetWidth(220)
+    factionValue:SetJustifyH("LEFT")
 
     local preview = overview:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     preview:SetPoint("TOPLEFT", 280, -28)
@@ -319,17 +315,16 @@ function ClassForge:CreateOptionsPanel()
             className = ClassForge:Trim(classBox:GetText()) ~= "" and ClassForge:Trim(classBox:GetText()) or ClassForge.defaults.character.className,
             color = ClassForge:SanitizeHex(colorBox:GetText()) or ClassForge.defaults.character.color,
             role = role,
-            order = ClassForge:Trim(orderBox:GetText()),
+            faction = ClassForge:GetUnitFaction("player"),
         }
 
-        local orderText = data.order ~= "" and ("\nOrder: " .. data.order) or ""
-        preview:SetText("Preview\n" .. ClassForge:GetColoredClassText(data) .. "\nRole: " .. data.role .. orderText)
+        preview:SetText("Preview\n" .. ClassForge:GetColoredClassText(data) .. "\nRole: " .. data.role .. "\nFaction: " .. ClassForge:GetFactionText(data))
     end
 
     local saveButton = CreateFrame("Button", nil, overview, "UIPanelButtonTemplate")
     saveButton:SetWidth(100)
     saveButton:SetHeight(24)
-    saveButton:SetPoint("TOPLEFT", orderBox, "BOTTOMLEFT", 0, -16)
+    saveButton:SetPoint("TOPLEFT", factionValue, "BOTTOMLEFT", 0, -16)
     saveButton:SetText("Save")
     saveButton:SetScript("OnClick", function()
         local className = ClassForge:Trim(classBox:GetText())
@@ -340,7 +335,6 @@ function ClassForge:CreateOptionsPanel()
         characterProfile.className = className ~= "" and className or ClassForge.defaults.character.className
         characterProfile.color = color or ClassForge.defaults.character.color
         characterProfile.role = role or ClassForge.defaults.character.role
-        characterProfile.order = ClassForge:Trim(orderBox:GetText())
 
         ClassForge:RefreshPlayerCache()
         ClassForge:BroadcastStartup()
@@ -367,7 +361,7 @@ function ClassForge:CreateOptionsPanel()
         classBox:SetText(ClassForge.defaults.character.className)
         colorBox:SetText(ClassForge.defaults.character.color)
         roleBox:SetText(ClassForge.defaults.character.role)
-        orderBox:SetText(ClassForge.defaults.character.order)
+        factionValue:SetText(ClassForge:GetFactionText(ClassForge:BuildProfileData()))
         updatePreview()
     end)
 
@@ -567,7 +561,7 @@ function ClassForge:CreateOptionsPanel()
     end)
 
     local function refreshStatusText()
-        statusText:SetText("Addon version: " .. (ClassForge.version or "2.5.0") .. "\nSync protocol: CF2\nUse /cf sync to refresh your record and query nearby players.")
+        statusText:SetText("Addon version: " .. (ClassForge.version or "2.5.0") .. "\nSync protocol: CF3\nUse /cf sync to refresh your record and query nearby players.")
         displayStatus:SetText("Minimap button: " .. (ClassForge:IsMinimapButtonHidden() and "Hidden" or "Shown")
             .. " |cff808080-|r Target profile: " .. (ClassForge:IsTargetProfileHidden() and "Hidden" or "Shown")
             .. " |cff808080-|r Locked: " .. (ClassForge:IsTargetProfileLocked() and "Yes" or "No")
@@ -580,7 +574,7 @@ function ClassForge:CreateOptionsPanel()
         classBox:SetText(characterProfile.className or ClassForge.defaults.character.className)
         colorBox:SetText(characterProfile.color or ClassForge.defaults.character.color)
         roleBox:SetText(characterProfile.role or ClassForge.defaults.character.role)
-        orderBox:SetText(characterProfile.order or "")
+        factionValue:SetText(ClassForge:GetFactionText(ClassForge:BuildProfileData()))
         minimapToggle:SetChecked(not ClassForge:IsMinimapButtonHidden())
         chatToggle:SetChecked(ClassForge:IsChatDecorationEnabled())
         realmToggle:SetChecked(ClassForge:IsRealmAwareEnabled())

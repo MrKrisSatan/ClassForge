@@ -14,12 +14,12 @@ end
 
 function ClassForge:SerializeData(data)
     return table.concat({
-        "CF2",
+        "CF3",
         encodeField(self.version or "1.0.0"),
         encodeField(data.className or ""),
         encodeField(self:SanitizeHex(data.color) or self.defaults.character.color),
         encodeField(self:NormalizeRole(data.role) or self.defaults.character.role),
-        encodeField(data.order or ""),
+        encodeField(self:NormalizeFaction(data.faction)),
     }, "|")
 end
 
@@ -80,7 +80,19 @@ function ClassForge:DeserializeData(message)
         return nil
     end
 
-    local protocol, addonVersion, className, color, role, order = strsplit("|", message)
+    local protocol, addonVersion, className, color, role, faction = strsplit("|", message)
+
+    if protocol == "CF3" then
+        return {
+            addonVersion = decodeField(addonVersion),
+            className = decodeField(className),
+            color = decodeField(color),
+            role = decodeField(role),
+            faction = decodeField(faction),
+            updated = time(),
+            source = "addon",
+        }
+    end
 
     if protocol == "CF2" then
         return {
@@ -88,7 +100,7 @@ function ClassForge:DeserializeData(message)
             className = decodeField(className),
             color = decodeField(color),
             role = decodeField(role),
-            order = decodeField(order),
+            faction = "",
             updated = time(),
             source = "addon",
         }
@@ -100,7 +112,7 @@ function ClassForge:DeserializeData(message)
             className = decodeField(addonVersion),
             color = decodeField(className),
             role = decodeField(color),
-            order = decodeField(role),
+            faction = "",
             updated = time(),
             source = "addon",
         }
@@ -170,7 +182,7 @@ function ClassForge:ProcessWhoResults()
                     className = className,
                     color = self:GuessColorFromClass(className),
                     role = self:GuessRoleFromClass(className),
-                    order = "",
+                    faction = "",
                     updated = time(),
                     source = "who",
                 })
@@ -196,7 +208,9 @@ function ClassForge:PerformWhoSync()
     end
 
     self.pendingWhoSync = true
-    SetWhoToUI(1)
+    if SetWhoToUI then
+        SetWhoToUI(0)
+    end
     SendWho("")
     self:ProcessWhoResults()
     return true

@@ -4,6 +4,7 @@ function ClassForge:InitDisplay()
     self:HookWhoFrame()
     self:HookGuildFrame()
     self:HookFriendsFrame()
+    self:HookRaidBrowser()
     self:SetupMapMarkerTooltips()
     self:CreateMinimapButton()
     self:CreateCharacterPanel()
@@ -525,9 +526,7 @@ function ClassForge:AppendTooltipData(tooltip, data)
     tooltip:AddLine(" ")
     tooltip:AddLine("Class: " .. self:GetColoredClassText(data))
     tooltip:AddLine("Role: |cffffffff" .. (data.role or "DPS") .. "|r")
-    if data.order and data.order ~= "" then
-        tooltip:AddLine("Order: |cffffffff" .. data.order .. "|r")
-    end
+    tooltip:AddLine("Faction: |cffffffff" .. self:GetFactionText(data) .. "|r")
     tooltip:AddLine(self:GetDataStatusText(data))
     tooltip:Show()
 end
@@ -545,11 +544,46 @@ function ClassForge:AppendMapTooltipData(tooltip, unit)
     tooltip:AddLine(" ")
     tooltip:AddLine("ClassForge: " .. self:GetColoredClassText(data))
     tooltip:AddLine("Role: |cffffffff" .. (data.role or self.defaults.character.role) .. "|r")
-    if data.order and data.order ~= "" then
-        tooltip:AddLine("Order: |cffffffff" .. data.order .. "|r")
-    end
+    tooltip:AddLine("Faction: |cffffffff" .. self:GetFactionText(data) .. "|r")
     tooltip:AddLine(self:GetDataStatusText(data))
     tooltip:Show()
+end
+
+function ClassForge:GetTooltipOwnedUnit(tooltip)
+    if not tooltip or not tooltip.GetOwner then
+        return nil
+    end
+
+    local owner = tooltip:GetOwner()
+    local depth = 0
+
+    while owner and depth < 5 do
+        if owner.unit and UnitExists(owner.unit) then
+            return owner.unit
+        end
+
+        if not owner.GetParent then
+            break
+        end
+
+        owner = owner:GetParent()
+        depth = depth + 1
+    end
+
+    return nil
+end
+
+function ClassForge:AppendTooltipDataForUnit(tooltip, unit)
+    if not tooltip or not unit or not UnitExists(unit) or not UnitIsPlayer(unit) then
+        return
+    end
+
+    local data = self:GetDataForUnit(unit)
+    if not data then
+        return
+    end
+
+    self:AppendTooltipData(tooltip, data)
 end
 
 function ClassForge:HookMapTooltipFrame(frame, tooltipObject, unit)
@@ -604,17 +638,92 @@ function ClassForge:HookTooltips()
 
     GameTooltip:HookScript("OnTooltipSetUnit", function(tooltip)
         local _, unit = tooltip:GetUnit()
-        if not unit or not UnitIsPlayer(unit) or not UnitExists("mouseover") or not UnitIsUnit(unit, "mouseover") then
+        if not unit or not UnitIsPlayer(unit) then
             return
         end
 
-        local data = ClassForge:GetDataForUnit("mouseover")
-        if not data then
+        local ownerUnit = ClassForge:GetTooltipOwnedUnit(tooltip)
+        if ownerUnit and UnitIsUnit(unit, ownerUnit) then
+            ClassForge:AppendTooltipDataForUnit(tooltip, ownerUnit)
             return
         end
 
-        ClassForge:AppendTooltipData(tooltip, data)
+        if UnitExists("mouseover") and UnitIsUnit(unit, "mouseover") then
+            ClassForge:AppendTooltipDataForUnit(tooltip, "mouseover")
+        end
     end)
+end
+
+function ClassForge:GetRaidBrowserClassColor(data, fileName, online, isDead)
+    if not online then
+        return GRAY_FONT_COLOR.r, GRAY_FONT_COLOR.g, GRAY_FONT_COLOR.b
+    end
+
+    if isDead then
+        return RED_FONT_COLOR.r, RED_FONT_COLOR.g, RED_FONT_COLOR.b
+    end
+
+    if data and data.color then
+        return self:HexToRGB(data.color)
+    end
+
+    local color = fileName and RAID_CLASS_COLORS and RAID_CLASS_COLORS[fileName]
+    if color then
+        return color.r, color.g, color.b
+    end
+
+    return 1, 1, 1
+end
+
+function ClassForge:UpdateRaidBrowser()
+    if not RaidGroupFrame_Update then
+        return
+    end
+
+    for index = 1, MAX_RAID_MEMBERS do
+        local button = _G["RaidGroupButton" .. index]
+        local classFontString = _G["RaidGroupButton" .. index .. "Class"]
+        if button and classFontString and button:IsShown() and button.unit and UnitExists(button.unit) and UnitIsPlayer(button.unit) then
+            local _, _, _, _, className, fileName, _, online, isDead = GetRaidRosterInfo(index)
+            local data = self:GetDataForUnit(button.unit)
+
+            if data and data.className and data.className ~= "" then
+                classFontString:SetText(data.className)
+            else
+                classFontString:SetText(className or "")
+            end
+
+            local r, g, b = self:GetRaidBrowserClassColor(data, fileName, online, isDead)
+            classFontString:SetTextColor(r, g, b)
+        end
+    end
+end
+
+function ClassForge:HookRaidBrowser()
+    if self.raidFrameLoadHooked == nil and RaidFrame_LoadUI then
+        self.raidFrameLoadHooked = true
+        hooksecurefunc("RaidFrame_LoadUI", function()
+            ClassForge:HookRaidBrowser()
+        end)
+    end
+
+    if self.raidBrowserHooked or not RaidGroupFrame_Update then
+        return
+    end
+
+    self.raidBrowserHooked = true
+
+    hooksecurefunc("RaidGroupFrame_Update", function()
+        ClassForge:UpdateRaidBrowser()
+    end)
+
+    if RaidGroupFrame_UpdateHealth then
+        hooksecurefunc("RaidGroupFrame_UpdateHealth", function()
+            ClassForge:UpdateRaidBrowser()
+        end)
+    end
+
+    self:UpdateRaidBrowser()
 end
 
 function ClassForge:EnsureFriendsTooltipExtras()
@@ -709,14 +818,8 @@ function ClassForge:UpdateFriendsTooltip(button)
 
     FriendsFrameTooltip_SetLine(classText, anchor, "Class: " .. self:GetColoredClassText(data), -8)
     FriendsFrameTooltip_SetLine(roleText, classText, "Role: |cffffffff" .. (data.role or self.defaults.character.role) .. "|r", -2)
-
-    if data.order and data.order ~= "" then
-        FriendsFrameTooltip_SetLine(orderText, roleText, "Order: |cffffffff" .. data.order .. "|r", -2)
-    else
-        orderText:Hide()
-    end
-
-    FriendsFrameTooltip_SetLine(updatedText, (data.order and data.order ~= "") and orderText or roleText, "Source: |cffffffff" .. self:GetSourceLabel(data) .. "|r |cff808080-|r Updated: |cffffffff" .. self:FormatUpdatedTime(data.updated) .. "|r", -2)
+    FriendsFrameTooltip_SetLine(orderText, roleText, "Faction: |cffffffff" .. self:GetFactionText(data) .. "|r", -2)
+    FriendsFrameTooltip_SetLine(updatedText, orderText, "Source: |cffffffff" .. self:GetSourceLabel(data) .. "|r |cff808080-|r Updated: |cffffffff" .. self:FormatUpdatedTime(data.updated) .. "|r", -2)
 
     FriendsTooltip:SetHeight(FriendsTooltip.height + FRIENDS_TOOLTIP_MARGIN_WIDTH)
     FriendsTooltip:SetWidth(min(FRIENDS_TOOLTIP_MAX_WIDTH, FriendsTooltip.maxWidth + FRIENDS_TOOLTIP_MARGIN_WIDTH))
@@ -930,9 +1033,9 @@ function ClassForge:UpdateCharacterPanel()
 
     local data = self:BuildProfileData()
     local roleText = data.role or self.defaults.character.role
-    local orderText = data.order ~= "" and (" |cff808080-|r " .. data.order) or ""
+    local factionText = self:GetFactionText(data)
 
-    PaperDollFrame.ClassForgeInfo:SetText(self:GetColoredClassText(data) .. " |cff808080(|r" .. roleText .. orderText .. "|cff808080)|r")
+    PaperDollFrame.ClassForgeInfo:SetText(self:GetColoredClassText(data) .. " |cff808080(|r" .. roleText .. " |cff808080-|r " .. factionText .. "|cff808080)|r")
 end
 
 function ClassForge:CreateTargetClassTag()
@@ -1035,7 +1138,7 @@ function ClassForge:UpdateTargetProfile()
 
     self.targetProfile.classText:SetText("Class: " .. self:GetColoredClassText(data))
     self.targetProfile.roleText:SetText("Role: " .. (data.role or self.defaults.character.role))
-    self.targetProfile.orderText:SetText("Order: " .. (data.order ~= "" and data.order or "-") .. " |cff808080-|r " .. self:GetSourceLabel(data) .. " |cff808080-|r " .. self:FormatUpdatedTime(data.updated))
+    self.targetProfile.orderText:SetText("Faction: " .. self:GetFactionText(data) .. " |cff808080-|r " .. self:GetSourceLabel(data) .. " |cff808080-|r " .. self:FormatUpdatedTime(data.updated))
     self.targetProfile:Show()
 end
 
@@ -1084,6 +1187,6 @@ function ClassForge:UpdateInspectFrame()
         return
     end
 
-    local suffix = data.order ~= "" and (" |cff808080-|r " .. data.order) or ""
-    InspectPaperDollFrame.ClassForgeInfo:SetText(self:GetColoredClassText(data) .. " |cff808080(|r" .. (data.role or self.defaults.character.role) .. suffix .. " |cff808080-|r " .. self:GetSourceLabel(data) .. " |cff808080-|r " .. self:FormatUpdatedTime(data.updated) .. "|cff808080)|r")
+    local factionText = self:GetFactionText(data)
+    InspectPaperDollFrame.ClassForgeInfo:SetText(self:GetColoredClassText(data) .. " |cff808080(|r" .. (data.role or self.defaults.character.role) .. " |cff808080-|r " .. factionText .. " |cff808080-|r " .. self:GetSourceLabel(data) .. " |cff808080-|r " .. self:FormatUpdatedTime(data.updated) .. "|cff808080)|r")
 end

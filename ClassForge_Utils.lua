@@ -125,6 +125,40 @@ function ClassForge:NormalizeRole(role)
     return nil
 end
 
+function ClassForge:NormalizeFaction(value)
+    value = self:Trim(value)
+    if value == "" then
+        return ""
+    end
+
+    local lower = string.lower(value)
+    if lower == "alliance" then
+        return "Alliance"
+    end
+    if lower == "horde" then
+        return "Horde"
+    end
+
+    return ""
+end
+
+function ClassForge:GetUnitFaction(unit)
+    if not unit or not UnitExists(unit) then
+        return ""
+    end
+
+    return self:NormalizeFaction(UnitFactionGroup(unit))
+end
+
+function ClassForge:GetFactionText(data)
+    local faction = data and self:NormalizeFaction(data.faction) or ""
+    if faction ~= "" then
+        return faction
+    end
+
+    return "Unknown"
+end
+
 function ClassForge:HexToRGB(hex)
     local clean = self:SanitizeHex(hex) or "FFFFFF"
     local r = tonumber(clean:sub(1, 2), 16) or 255
@@ -325,7 +359,6 @@ function ClassForge:MigrateDatabase()
             ClassForgeDB.characters[characterKey].className = self:Trim(ClassForgeDB.profile.className) ~= "" and self:Trim(ClassForgeDB.profile.className) or self.defaults.character.className
             ClassForgeDB.characters[characterKey].color = self:SanitizeHex(ClassForgeDB.profile.color) or self.defaults.character.color
             ClassForgeDB.characters[characterKey].role = self:NormalizeRole(ClassForgeDB.profile.role) or self.defaults.character.role
-            ClassForgeDB.characters[characterKey].order = self:Trim(ClassForgeDB.profile.order)
             ClassForgeDB.characters[characterKey]._migratedFromLegacy = true
         end
 
@@ -334,6 +367,18 @@ function ClassForge:MigrateDatabase()
         ClassForgeDB.profile.role = nil
         ClassForgeDB.profile.order = nil
         version = 3
+    end
+
+    if version < 4 then
+        for _, characterData in pairs(ClassForgeDB.characters) do
+            if type(characterData) == "table" then
+                characterData.order = nil
+                characterData.faction = nil
+            end
+        end
+
+        ClassForgeDB.profile.order = nil
+        version = 4
     end
 
     local rebuiltCache = {}
@@ -345,7 +390,8 @@ function ClassForge:MigrateDatabase()
             data.color = self:SanitizeHex(data.color) or self.defaults.character.color
             data.role = self:NormalizeRole(data.role) or self.defaults.character.role
             data.className = self:Trim(data.className) ~= "" and self:Trim(data.className) or self.defaults.character.className
-            data.order = self:Trim(data.order)
+            data.faction = self:NormalizeFaction(data.faction)
+            data.order = nil
             data.source = data.source or "observed"
             data.updated = tonumber(data.updated) or time()
             data.addonVersion = self:Trim(data.addonVersion)
@@ -376,7 +422,22 @@ function ClassForge:GetDataForUnit(unit)
         return self:BuildProfileData()
     end
 
-    return self:GetDataForName(UnitName(unit))
+    local data = self:GetDataForName(UnitName(unit))
+    if not data then
+        return nil
+    end
+
+    local observedFaction = self:GetUnitFaction(unit)
+    if observedFaction ~= "" and observedFaction ~= (data.faction or "") then
+        local copy = {}
+        for key, value in pairs(data) do
+            copy[key] = value
+        end
+        copy.faction = observedFaction
+        return copy
+    end
+
+    return data
 end
 
 function ClassForge:SetDataForName(name, data)
@@ -413,7 +474,7 @@ function ClassForge:SetDataForName(name, data)
         className = self:Trim(data.className) ~= "" and self:Trim(data.className) or existing.className or self.defaults.character.className,
         color = self:SanitizeHex(data.color) or existing.color or self.defaults.character.color,
         role = self:NormalizeRole(data.role) or existing.role or self.defaults.character.role,
-        order = self:Trim(data.order) ~= "" and self:Trim(data.order) or (data.source == "addon" and "" or existing.order or ""),
+        faction = self:NormalizeFaction(data.faction) ~= "" and self:NormalizeFaction(data.faction) or existing.faction or "",
         addonVersion = self:Trim(data.addonVersion) ~= "" and self:Trim(data.addonVersion) or existing.addonVersion or "",
         updated = incomingUpdated,
         source = data.source or "observed",

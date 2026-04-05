@@ -6,7 +6,6 @@ Core commands:
 `/cf setclass <name>`
 `/cf setcolor <hex>`
 `/cf setrole <Heal|Tank|DPS>`
-`/cf setorder <order>`
 `/cf realmaware on|off`
 `/cf show`
 `/cf sync`
@@ -24,7 +23,7 @@ Core commands:
 
 What it does:
 
-- Saves your custom class name, class colour, role, and order in SavedVariables.
+- Saves your custom class name, class colour, and role in SavedVariables, and syncs the character's faction automatically.
 - Shares your profile with other addon users through `SendAddonMessage`.
 - Caches received player data by normalized player name.
 - Displays custom class data in tooltips, `/who`, guild roster, friends list, character panel, target tag, inspect panel, and a target-side profile box.

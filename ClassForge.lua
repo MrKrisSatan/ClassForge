@@ -3,7 +3,7 @@ ClassForge = ClassForge or {}
 ClassForge.name = "ClassForge"
 ClassForge.prefix = "CLASSFORGE"
 ClassForge.version = "2.5.5"
-ClassForge.dbVersion = 2
+ClassForge.dbVersion = 4
 ClassForge.homepage = "https://github.com/MrKrisSatan/ClassForge"
 ClassForge.releasesPage = "https://github.com/MrKrisSatan/ClassForge/releases"
 
@@ -15,7 +15,6 @@ ClassForge.defaults = {
         className = "Hero",
         color = "FFD100",
         role = "DPS",
-        order = "",
     },
     profile = {
         enabled = true,
@@ -123,14 +122,12 @@ function ClassForge:EnsureCurrentCharacterProfile()
             self:Trim(globalProfile.className) ~= ""
             or self:SanitizeHex(globalProfile.color)
             or self:NormalizeRole(globalProfile.role)
-            or self:Trim(globalProfile.order) ~= ""
         )
 
         if hasLegacyIdentity then
             characterProfile.className = self:Trim(characterProfile.className) ~= "" and characterProfile.className or (self:Trim(globalProfile.className) ~= "" and self:Trim(globalProfile.className) or self.defaults.character.className)
             characterProfile.color = self:SanitizeHex(characterProfile.color) or self:SanitizeHex(globalProfile.color) or self.defaults.character.color
             characterProfile.role = self:NormalizeRole(characterProfile.role) or self:NormalizeRole(globalProfile.role) or self.defaults.character.role
-            characterProfile.order = self:Trim(characterProfile.order) ~= "" and self:Trim(characterProfile.order) or self:Trim(globalProfile.order)
         end
 
         characterProfile._migratedFromLegacy = true
@@ -146,7 +143,7 @@ function ClassForge:BuildProfileData()
         className = self:Trim(profile.className) ~= "" and self:Trim(profile.className) or self.defaults.character.className,
         color = self:SanitizeHex(profile.color) or self.defaults.character.color,
         role = self:NormalizeRole(profile.role) or self.defaults.character.role,
-        order = self:Trim(profile.order),
+        faction = self:GetUnitFaction("player") or "",
         addonVersion = self.version,
         updated = time(),
         source = "self",
@@ -177,6 +174,9 @@ function ClassForge:RefreshAllDisplays()
     end
     if self.UpdateFriendsList then
         self:UpdateFriendsList()
+    end
+    if self.UpdateRaidBrowser then
+        self:UpdateRaidBrowser()
     end
     if self.UpdateTargetClassTag then
         self:UpdateTargetClassTag()
