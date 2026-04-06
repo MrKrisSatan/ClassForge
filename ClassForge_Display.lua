@@ -305,6 +305,40 @@ function ClassForge:GetMeterEntry(container, name)
     return container[normalized]
 end
 
+function ClassForge:SeedMeterParticipants()
+    if not self:IsMeterEnabled() then
+        return
+    end
+
+    local combat = self:EnsureMeterCombatActive()
+    if not combat then
+        return
+    end
+
+    local function addUnit(unit)
+        if UnitExists(unit) and UnitIsPlayer(unit) then
+            local name = UnitName(unit)
+            if name then
+                self:GetMeterEntry(combat.damage, name)
+                self:GetMeterEntry(combat.healing, name)
+                self:GetMeterEntry(combat.healingReceived, name)
+            end
+        end
+    end
+
+    addUnit("player")
+
+    if GetNumRaidMembers and (GetNumRaidMembers() or 0) > 0 then
+        for index = 1, MAX_RAID_MEMBERS do
+            addUnit("raid" .. index)
+        end
+    else
+        for index = 1, MAX_PARTY_MEMBERS do
+            addUnit("party" .. index)
+        end
+    end
+end
+
 function ClassForge:RecordMeterDamage(sourceName, spellName, amount, sourceFlags, sourceGUID)
     if not self:IsMeterEnabled() then
         return
@@ -625,17 +659,39 @@ function ClassForge:GetMeterRows(view)
 end
 
 function ClassForge:GetMeterRowColor(index, total)
-    local startRed, startGreen, startBlue = self:HexToRGB("CE2029")
-    local endRed, endGreen, endBlue = self:HexToRGB("36454F")
     local progress = 0
 
     if total and total > 1 then
         progress = (index - 1) / (total - 1)
     end
 
-    local red = startRed + ((endRed - startRed) * progress)
-    local green = startGreen + ((endGreen - startGreen) * progress)
-    local blue = startBlue + ((endBlue - startBlue) * progress)
+    local stops = {
+        { at = 0.0, color = "CE2029" },
+        { at = 0.33, color = "FFD54A" },
+        { at = 0.66, color = "76C66B" },
+        { at = 1.0, color = "2E8B57" },
+    }
+
+    local fromStop = stops[1]
+    local toStop = stops[#stops]
+    for stopIndex = 1, (#stops - 1) do
+        local current = stops[stopIndex]
+        local nextStop = stops[stopIndex + 1]
+        if progress >= current.at and progress <= nextStop.at then
+            fromStop = current
+            toStop = nextStop
+            break
+        end
+    end
+
+    local range = toStop.at - fromStop.at
+    local segmentProgress = range > 0 and ((progress - fromStop.at) / range) or 0
+    local fromRed, fromGreen, fromBlue = self:HexToRGB(fromStop.color)
+    local toRed, toGreen, toBlue = self:HexToRGB(toStop.color)
+
+    local red = fromRed + ((toRed - fromRed) * segmentProgress)
+    local green = fromGreen + ((toGreen - fromGreen) * segmentProgress)
+    local blue = fromBlue + ((toBlue - fromBlue) * segmentProgress)
 
     return string.format("%02x%02x%02x", math.floor(red * 255 + 0.5), math.floor(green * 255 + 0.5), math.floor(blue * 255 + 0.5))
 end
@@ -757,6 +813,28 @@ function ClassForge:CreateMeterPanel()
         return
     end
 
+    local function setButtonTooltip(button, text)
+        button.tooltipText = text
+        button:SetScript("OnEnter", function(selfButton)
+            if not selfButton.tooltipText then
+                return
+            end
+            GameTooltip:SetOwner(selfButton, "ANCHOR_RIGHT")
+            GameTooltip:SetText(selfButton.tooltipText, 1, 1, 1)
+            GameTooltip:Show()
+        end)
+        button:SetScript("OnLeave", function()
+            GameTooltip:Hide()
+        end)
+    end
+
+    local function applyIcon(button, texturePath)
+        button.icon = button.icon or button:CreateTexture(nil, "ARTWORK")
+        button.icon:SetAllPoints(button)
+        button.icon:SetTexture(texturePath)
+        button.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    end
+
     local frame = CreateFrame("Frame", "ClassForgeMeterPanel", UIParent)
     frame:SetMinResize(420, 140)
     frame:SetMaxResize(900, 520)
@@ -805,46 +883,51 @@ function ClassForge:CreateMeterPanel()
 
     frame.viewButtons = {}
     local viewOrder = {
-        { key = "dps", label = "meter_view_dps" },
-        { key = "threat", label = "meter_view_threat" },
-        { key = "healing_done", label = "meter_view_healing_done" },
-        { key = "healing_received", label = "meter_view_healing_received" },
+        { key = "dps", label = "meter_view_dps", icon = "Interface\\Icons\\Ability_Rogue_SliceDice" },
+        { key = "threat", label = "meter_view_threat", icon = "Interface\\Icons\\Ability_Defend" },
+        { key = "healing_done", label = "meter_view_healing_done", icon = "Interface\\Icons\\Spell_Holy_HolyBolt" },
+        { key = "healing_received", label = "meter_view_healing_received", icon = "Interface\\Icons\\INV_Misc_Bandage_15" },
     }
     local previousButton
     for _, viewData in ipairs(viewOrder) do
-        local button = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-        button:SetHeight(18)
+        local button = CreateFrame("Button", nil, frame)
+        button:SetWidth(20)
+        button:SetHeight(20)
         button.viewKey = viewData.key
         if previousButton then
-            button:SetPoint("TOPLEFT", previousButton, "TOPRIGHT", 4, 0)
+            button:SetPoint("TOPLEFT", previousButton, "TOPRIGHT", 3, 0)
         else
             button:SetPoint("TOPLEFT", frame.title, "BOTTOMLEFT", 0, -6)
         end
+        applyIcon(button, viewData.icon)
         button:SetScript("OnClick", function(selfButton)
             ClassForge:SetMeterView(selfButton.viewKey)
         end)
         button.labelKey = viewData.label
+        setButtonTooltip(button, self:L(viewData.label))
         frame.viewButtons[#frame.viewButtons + 1] = button
         previousButton = button
     end
 
-    frame.resetButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    frame.resetButton:SetWidth(48)
-    frame.resetButton:SetHeight(18)
+    frame.resetButton = CreateFrame("Button", nil, frame)
+    frame.resetButton:SetWidth(20)
+    frame.resetButton:SetHeight(20)
     frame.resetButton:SetPoint("TOPRIGHT", -8, -8)
-    frame.resetButton:SetText(self:L("reset"))
+    applyIcon(frame.resetButton, "Interface\\Buttons\\UI-RotationLeft-Button-Up")
     frame.resetButton:SetScript("OnClick", function()
         ClassForge:ResetMeterData()
     end)
+    setButtonTooltip(frame.resetButton, self:L("reset_meter_data"))
 
-    frame.exportButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    frame.exportButton:SetWidth(48)
-    frame.exportButton:SetHeight(18)
+    frame.exportButton = CreateFrame("Button", nil, frame)
+    frame.exportButton:SetWidth(20)
+    frame.exportButton:SetHeight(20)
     frame.exportButton:SetPoint("RIGHT", frame.resetButton, "LEFT", -6, 0)
-    frame.exportButton:SetText("Send")
+    applyIcon(frame.exportButton, "Interface\\Buttons\\UI-GuildButton-MOTD-Up")
     frame.exportButton:SetScript("OnClick", function()
         ClassForge:ExportMeterToChat()
     end)
+    setButtonTooltip(frame.exportButton, self:L("meter_export"))
 
     frame.hintText = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     frame.hintText:SetPoint("RIGHT", frame.exportButton, "LEFT", -8, 0)
@@ -883,24 +966,26 @@ function ClassForge:CreateMeterPanel()
         ClassForge:UpdateMeterPanel()
     end)
 
-    frame.liveUpdate = CreateFrame("Frame", nil, frame)
-    frame.liveUpdate.elapsed = 0
-    frame.liveUpdate:SetScript("OnUpdate", function(_, elapsed)
-        if not ClassForge:IsMeterEnabled() then
-            return
-        end
+    if not self.meterTicker then
+        self.meterTicker = CreateFrame("Frame", nil, UIParent)
+        self.meterTicker.elapsed = 0
+        self.meterTicker:SetScript("OnUpdate", function(_, elapsed)
+            if not ClassForge:IsMeterEnabled() then
+                return
+            end
 
-        local combat = ClassForge.meterState and ClassForge.meterState.combat or nil
-        if not combat or not combat.active then
-            return
-        end
+            local combat = ClassForge.meterState and ClassForge.meterState.combat or nil
+            if not combat or not combat.active then
+                return
+            end
 
-        frame.liveUpdate.elapsed = frame.liveUpdate.elapsed + elapsed
-        if frame.liveUpdate.elapsed >= 0.2 then
-            frame.liveUpdate.elapsed = 0
-            ClassForge:UpdateMeterPanel()
-        end
-    end)
+            ClassForge.meterTicker.elapsed = ClassForge.meterTicker.elapsed + elapsed
+            if ClassForge.meterTicker.elapsed >= 0.1 then
+                ClassForge.meterTicker.elapsed = 0
+                ClassForge:UpdateMeterPanel()
+            end
+        end)
+    end
 
     self.meterPanel = frame
     self:ApplyMeterPosition()
@@ -922,21 +1007,19 @@ function ClassForge:UpdateMeterPanel()
     if self.meterPanel.viewButtons then
         local activeView = self:GetMeterView()
         for _, button in ipairs(self.meterPanel.viewButtons) do
-            button:SetText(self:L(button.labelKey))
-            button:SetWidth(math.max(72, button:GetTextWidth() + 16))
+            button.tooltipText = self:L(button.labelKey)
             if button.viewKey == activeView then
-                button:Disable()
+                button:SetAlpha(1)
             else
-                button:Enable()
+                button:SetAlpha(0.6)
             end
         end
     end
-    if self.meterPanel.resetButton then
-        self.meterPanel.resetButton:SetText(self:L("reset"))
-    end
     if self.meterPanel.exportButton then
-        self.meterPanel.exportButton:SetText(self:L("meter_export"))
-        self.meterPanel.exportButton:SetWidth(math.max(48, self.meterPanel.exportButton:GetTextWidth() + 18))
+        self.meterPanel.exportButton.tooltipText = self:L("meter_export")
+    end
+    if self.meterPanel.resetButton then
+        self.meterPanel.resetButton.tooltipText = self:L("reset_meter_data")
     end
     self.meterPanel.hintText:SetText(self:IsMeterLocked() and self:L("locked") or self:L("shift_drag"))
     self.meterPanel.text:SetText(self:BuildMeterText())

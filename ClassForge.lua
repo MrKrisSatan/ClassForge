@@ -2,7 +2,7 @@ ClassForge = ClassForge or {}
 
 ClassForge.name = "ClassForge"
 ClassForge.prefix = "CLASSFORGE"
-ClassForge.version = "3.5.1"
+ClassForge.version = "3.5.2"
 ClassForge.dbVersion = 5
 ClassForge.homepage = "https://github.com/MrKrisSatan/ClassForge"
 ClassForge.releasesPage = "https://github.com/MrKrisSatan/ClassForge/releases"
@@ -783,6 +783,9 @@ function ClassForge:PLAYER_REGEN_DISABLED()
         if self.EnsureMeterCombatActive then
             self:EnsureMeterCombatActive()
         end
+        if self.SeedMeterParticipants then
+            self:SeedMeterParticipants()
+        end
         self:UpdateMeterPanel()
     end
 end
@@ -811,9 +814,6 @@ function ClassForge:COMBAT_LOG_EVENT_UNFILTERED(...)
     end
 
     local timestamp, eventType, hideCaster, sourceGUID, sourceName, sourceFlags, sourceRaidFlags, destGUID, destName, destFlags, destRaidFlags, arg1, arg2, arg3, arg4, arg5, arg6, arg7 = ...
-    if not eventType and CombatLogGetCurrentEventInfo then
-        timestamp, eventType, hideCaster, sourceGUID, sourceName, sourceFlags, sourceRaidFlags, destGUID, destName, destFlags, destRaidFlags, arg1, arg2, arg3, arg4, arg5, arg6, arg7 = CombatLogGetCurrentEventInfo()
-    end
     if not eventType and _G.arg2 then
         timestamp = _G.arg1
         eventType = _G.arg2
