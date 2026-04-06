@@ -1,5 +1,36 @@
 # Changelog
 
+## 3.5.0 - 2026-04-06
+
+### Added
+- ClassForge combat meter with a dedicated `Meter` options tab.
+- Movable on-screen meter box with saved position and lock support.
+- Meter settings for:
+  - show/hide meter box
+  - lock position
+  - max displayed DPS rows
+  - DPS rankings
+  - top damage spell
+  - highest threat on current target
+  - healing leader
+- Meter reset controls for both position and live combat data.
+- Export controls for sending the current meter table to chat.
+- Export targets for `Party`, `Raid`, `Guild`, `Officer`, `Say`, `Yell`, and custom `Channel` names such as `world`.
+- On-box export button for quickly sending the current meter without opening options.
+- Table-based meter display with one row per player.
+
+### Changed
+- Meter rows now display as `PlayerName (Custom Class)`.
+- Meter output now uses ClassForge custom class identities and colors where cached data exists.
+- Role handling now defaults to Blizzard’s selected role and falls back to `Damage` when no Blizzard role is selected.
+- Version bumped to `3.5.0`.
+
+### Fixed
+- Meter tracking now works outside groups as well as in parties and raids.
+- Added `UNIT_COMBAT` fallback support for private/custom 3.3.5a clients where `COMBAT_LOG_EVENT_UNFILTERED` is incomplete or nonstandard.
+- Combat source tracking was relaxed to support classless/private-client payload differences.
+- Combat amount parsing was made more tolerant of modified Wrath event payload layouts.
+
 ## 3.1.0 - 2026-04-05
 
 ### Added

@@ -292,6 +292,7 @@ function ClassForge:CreateOptionsPanel()
     local overview = createTab("overview", ClassForge:L("profile_tab"), 0)
     local display = createTab("display", ClassForge:L("display_tab"), 116)
     local cache = createTab("cache", ClassForge:L("cache_tab"), 232)
+    local meter = createTab("meter", ClassForge:L("meter_tab"), 348)
 
     local classBox = createEditBox(overview, 220, 30, ClassForge:L("custom_class_name"), 0, 0)
     local classPresets = {
@@ -681,6 +682,151 @@ function ClassForge:CreateOptionsPanel()
     displayStatus:SetWidth(520)
     displayStatus:SetJustifyH("LEFT")
 
+    local meterEnableToggle = CreateFrame("CheckButton", "ClassForgeOptionsMeterEnableToggle", meter, "UICheckButtonTemplate")
+    meterEnableToggle:SetPoint("TOPLEFT", 0, -10)
+    _G[meterEnableToggle:GetName() .. "Text"]:SetText(ClassForge:L("meter_box"))
+    meterEnableToggle:SetScript("OnClick", function(selfButton)
+        ClassForge:SetMeterEnabled(selfButton:GetChecked())
+    end)
+
+    local meterLockToggle = CreateFrame("CheckButton", "ClassForgeOptionsMeterLockToggle", meter, "UICheckButtonTemplate")
+    meterLockToggle:SetPoint("TOPLEFT", meterEnableToggle, "BOTTOMLEFT", 0, -10)
+    _G[meterLockToggle:GetName() .. "Text"]:SetText(ClassForge:L("lock_meter"))
+    meterLockToggle:SetScript("OnClick", function(selfButton)
+        ClassForge:SetMeterLocked(selfButton:GetChecked())
+    end)
+
+    local meterShowDpsToggle = CreateFrame("CheckButton", "ClassForgeOptionsMeterShowDpsToggle", meter, "UICheckButtonTemplate")
+    meterShowDpsToggle:SetPoint("TOPLEFT", meterLockToggle, "BOTTOMLEFT", 0, -10)
+    _G[meterShowDpsToggle:GetName() .. "Text"]:SetText(ClassForge:L("meter_show_dps"))
+    meterShowDpsToggle:SetScript("OnClick", function(selfButton)
+        ClassForge:SetMeterSectionEnabled("showDps", selfButton:GetChecked())
+    end)
+
+    local meterShowTopSpellToggle = CreateFrame("CheckButton", "ClassForgeOptionsMeterShowTopSpellToggle", meter, "UICheckButtonTemplate")
+    meterShowTopSpellToggle:SetPoint("TOPLEFT", meterShowDpsToggle, "BOTTOMLEFT", 0, -10)
+    _G[meterShowTopSpellToggle:GetName() .. "Text"]:SetText(ClassForge:L("meter_show_top_spell"))
+    meterShowTopSpellToggle:SetScript("OnClick", function(selfButton)
+        ClassForge:SetMeterSectionEnabled("showTopSpell", selfButton:GetChecked())
+    end)
+
+    local meterShowThreatToggle = CreateFrame("CheckButton", "ClassForgeOptionsMeterShowThreatToggle", meter, "UICheckButtonTemplate")
+    meterShowThreatToggle:SetPoint("TOPLEFT", meterShowTopSpellToggle, "BOTTOMLEFT", 0, -10)
+    _G[meterShowThreatToggle:GetName() .. "Text"]:SetText(ClassForge:L("meter_show_threat"))
+    meterShowThreatToggle:SetScript("OnClick", function(selfButton)
+        ClassForge:SetMeterSectionEnabled("showThreat", selfButton:GetChecked())
+    end)
+
+    local meterShowHealingToggle = CreateFrame("CheckButton", "ClassForgeOptionsMeterShowHealingToggle", meter, "UICheckButtonTemplate")
+    meterShowHealingToggle:SetPoint("TOPLEFT", meterShowThreatToggle, "BOTTOMLEFT", 0, -10)
+    _G[meterShowHealingToggle:GetName() .. "Text"]:SetText(ClassForge:L("meter_show_healing"))
+    meterShowHealingToggle:SetScript("OnClick", function(selfButton)
+        ClassForge:SetMeterSectionEnabled("showHealing", selfButton:GetChecked())
+    end)
+
+    local meterRowsBox = createEditBox(meter, 70, 24, ClassForge:L("meter_max_rows"), 0, -178)
+    meterRowsBox:SetScript("OnEnterPressed", function(selfBox)
+        ClassForge:SetMeterMaxRows(selfBox:GetText())
+        selfBox:ClearFocus()
+    end)
+
+    local meterExportLabel = meter:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    meterExportLabel:SetPoint("TOPLEFT", meterRowsBox, "BOTTOMLEFT", 0, -18)
+    meterExportLabel:SetText(ClassForge:L("meter_export_target"))
+
+    local meterExportDropdown = CreateFrame("Frame", "ClassForgeMeterExportDropdown", meter, "UIDropDownMenuTemplate")
+    meterExportDropdown:SetPoint("TOPLEFT", meterExportLabel, "BOTTOMLEFT", -16, -2)
+    local meterExportChannelBox
+
+    local meterExportOptions = {
+        { key = "export_party", value = "PARTY" },
+        { key = "export_raid", value = "RAID" },
+        { key = "export_guild", value = "GUILD" },
+        { key = "export_officer", value = "OFFICER" },
+        { key = "export_say", value = "SAY" },
+        { key = "export_yell", value = "YELL" },
+        { key = "export_channel", value = "CHANNEL" },
+    }
+
+    local function setSelectedMeterExport(value)
+        local exportType = value or ClassForge.defaults.profile.meter.exportType
+        meterExportDropdown.selectedValue = exportType
+        for _, option in ipairs(meterExportOptions) do
+            if option.value == exportType then
+                UIDropDownMenu_SetText(meterExportDropdown, ClassForge:L(option.key))
+                break
+            end
+        end
+        ClassForge:SetMeterExportTarget(exportType)
+        if exportType == "CHANNEL" then
+            meterExportChannelBox:Show()
+            meterExportChannelBox.label:Show()
+        else
+            meterExportChannelBox:Hide()
+            meterExportChannelBox.label:Hide()
+        end
+    end
+
+    UIDropDownMenu_SetWidth(meterExportDropdown, 170)
+    UIDropDownMenu_Initialize(meterExportDropdown, function(self, level)
+        local info = UIDropDownMenu_CreateInfo()
+        for _, option in ipairs(meterExportOptions) do
+            info.text = ClassForge:L(option.key)
+            info.value = option.value
+            info.func = function()
+                setSelectedMeterExport(option.value)
+            end
+            info.checked = (meterExportDropdown.selectedValue == option.value)
+            UIDropDownMenu_AddButton(info, level)
+        end
+    end)
+
+    meterExportChannelBox = createEditBox(meter, 140, 24, ClassForge:L("meter_export_channel"), 250, -226)
+    meterExportChannelBox:SetScript("OnEnterPressed", function(selfBox)
+        ClassForge:SetMeterExportChannel(selfBox:GetText())
+        selfBox:ClearFocus()
+    end)
+
+    local meterResetButton = CreateFrame("Button", nil, meter, "UIPanelButtonTemplate")
+    meterResetButton:SetWidth(140)
+    meterResetButton:SetHeight(24)
+    meterResetButton:SetPoint("TOPLEFT", meterExportDropdown, "BOTTOMLEFT", 16, -16)
+    meterResetButton:SetText(ClassForge:L("reset_meter"))
+    meterResetButton:SetScript("OnClick", function()
+        ClassForge:ResetMeterPosition()
+        ClassForge:Print(ClassForge:L("reset_meter") .. ".")
+    end)
+
+    local meterResetDataButton = CreateFrame("Button", nil, meter, "UIPanelButtonTemplate")
+    meterResetDataButton:SetWidth(140)
+    meterResetDataButton:SetHeight(24)
+    meterResetDataButton:SetPoint("LEFT", meterResetButton, "RIGHT", 8, 0)
+    meterResetDataButton:SetText(ClassForge:L("reset_meter_data"))
+    meterResetDataButton:SetScript("OnClick", function()
+        ClassForge:ResetMeterData()
+    end)
+
+    local meterExportButton = CreateFrame("Button", nil, meter, "UIPanelButtonTemplate")
+    meterExportButton:SetWidth(140)
+    meterExportButton:SetHeight(24)
+    meterExportButton:SetPoint("LEFT", meterResetDataButton, "RIGHT", 8, 0)
+    meterExportButton:SetText(ClassForge:L("meter_export"))
+    meterExportButton:SetScript("OnClick", function()
+        ClassForge:SetMeterExportChannel(meterExportChannelBox:GetText())
+        ClassForge:ExportMeterToChat()
+    end)
+
+    local meterHint = meter:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    meterHint:SetPoint("TOPLEFT", meterResetButton, "BOTTOMLEFT", 0, -12)
+    meterHint:SetWidth(460)
+    meterHint:SetJustifyH("LEFT")
+    meterHint:SetText(ClassForge:L("meter_hint"))
+
+    local meterStatus = meter:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    meterStatus:SetPoint("TOPLEFT", meterHint, "BOTTOMLEFT", 0, -12)
+    meterStatus:SetWidth(520)
+    meterStatus:SetJustifyH("LEFT")
+
     local cacheStatus = cache:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     cacheStatus:SetPoint("TOPLEFT", 0, -10)
     cacheStatus:SetWidth(340)
@@ -842,6 +988,11 @@ function ClassForge:CreateOptionsPanel()
             .. " |cff808080-|r " .. ClassForge:L("compact") .. ": " .. (ClassForge:IsTargetProfileCompact() and ClassForge:L("yes") or ClassForge:L("no"))
             .. " |cff808080-|r " .. ClassForge:L("group_colors") .. ": " .. (ClassForge:IsGroupFrameColoringEnabled() and ClassForge:L("on") or ClassForge:L("off"))
             .. " |cff808080-|r " .. ClassForge:L("realm_aware_names") .. ": " .. (ClassForge:IsRealmAwareEnabled() and ClassForge:L("on") or ClassForge:L("off")))
+        meterStatus:SetText(
+            ClassForge:L("meter_box") .. ": " .. (ClassForge:IsMeterEnabled() and ClassForge:L("shown") or ClassForge:L("hidden"))
+            .. " |cff808080-|r " .. ClassForge:L("locked") .. ": " .. (ClassForge:IsMeterLocked() and ClassForge:L("yes") or ClassForge:L("no"))
+            .. " |cff808080-|r " .. ClassForge:L("meter_max_rows") .. ": " .. tostring(ClassForge:GetMeterMaxRows())
+        )
     end
 
     function panel:RefreshLocalizedText()
@@ -849,8 +1000,12 @@ function ClassForge:CreateOptionsPanel()
         tabs.overview:SetText(ClassForge:L("profile_tab"))
         tabs.display:SetText(ClassForge:L("display_tab"))
         tabs.cache:SetText(ClassForge:L("cache_tab"))
+        tabs.meter:SetText(ClassForge:L("meter_tab"))
         classBox.label:SetText(ClassForge:L("custom_class_name"))
         colorBox.label:SetText(ClassForge:L("class_color_hex"))
+        meterRowsBox.label:SetText(ClassForge:L("meter_max_rows"))
+        meterExportLabel:SetText(ClassForge:L("meter_export_target"))
+        meterExportChannelBox.label:SetText(ClassForge:L("meter_export_channel"))
         roleLabel:SetText(ClassForge:L("role_label"))
         roleHint:SetText(ClassForge:L("role_auto_hint"))
         factionLabel:SetText(ClassForge:L("faction_label"))
@@ -862,7 +1017,11 @@ function ClassForge:CreateOptionsPanel()
         languageLabel:SetText(ClassForge:L("language"))
         minimapResetButton:SetText(ClassForge:L("reset_minimap"))
         panelResetButton:SetText(ClassForge:L("reset_panel"))
+        meterResetButton:SetText(ClassForge:L("reset_meter"))
+        meterResetDataButton:SetText(ClassForge:L("reset_meter_data"))
+        meterExportButton:SetText(ClassForge:L("meter_export"))
         panelHint:SetText(ClassForge:L("panel_hint"))
+        meterHint:SetText(ClassForge:L("meter_hint"))
         clearStaleButton:SetText(ClassForge:L("clear_stale"))
         clearAllButton:SetText(ClassForge:L("clear_all"))
         browserTitle:SetText(ClassForge:L("known_players"))
@@ -875,6 +1034,13 @@ function ClassForge:CreateOptionsPanel()
         _G[panelLockToggle:GetName() .. "Text"]:SetText(ClassForge:L("lock_target_panel"))
         _G[panelCompactToggle:GetName() .. "Text"]:SetText(ClassForge:L("compact_target_panel"))
         _G[groupFrameColorsToggle:GetName() .. "Text"]:SetText(ClassForge:L("color_group_frames"))
+        _G[meterEnableToggle:GetName() .. "Text"]:SetText(ClassForge:L("meter_box"))
+        _G[meterLockToggle:GetName() .. "Text"]:SetText(ClassForge:L("lock_meter"))
+        _G[meterShowDpsToggle:GetName() .. "Text"]:SetText(ClassForge:L("meter_show_dps"))
+        _G[meterShowTopSpellToggle:GetName() .. "Text"]:SetText(ClassForge:L("meter_show_top_spell"))
+        _G[meterShowThreatToggle:GetName() .. "Text"]:SetText(ClassForge:L("meter_show_threat"))
+        _G[meterShowHealingToggle:GetName() .. "Text"]:SetText(ClassForge:L("meter_show_healing"))
+        setSelectedMeterExport(meterExportDropdown.selectedValue or ClassForge:GetMeterExportType())
         factionValue:SetText(ClassForge:GetFactionText(ClassForge:BuildProfileData()))
         if ClassForge.targetProfile then
             if ClassForge.targetProfile.refreshButton then
@@ -909,6 +1075,15 @@ function ClassForge:CreateOptionsPanel()
         panelLockToggle:SetChecked(ClassForge:IsTargetProfileLocked())
         panelCompactToggle:SetChecked(ClassForge:IsTargetProfileCompact())
         groupFrameColorsToggle:SetChecked(ClassForge:IsGroupFrameColoringEnabled())
+        meterEnableToggle:SetChecked(ClassForge:IsMeterEnabled())
+        meterLockToggle:SetChecked(ClassForge:IsMeterLocked())
+        meterShowDpsToggle:SetChecked(ClassForge:IsMeterSectionEnabled("showDps"))
+        meterShowTopSpellToggle:SetChecked(ClassForge:IsMeterSectionEnabled("showTopSpell"))
+        meterShowThreatToggle:SetChecked(ClassForge:IsMeterSectionEnabled("showThreat"))
+        meterShowHealingToggle:SetChecked(ClassForge:IsMeterSectionEnabled("showHealing"))
+        meterRowsBox:SetText(tostring(ClassForge:GetMeterMaxRows()))
+        meterExportChannelBox:SetText(ClassForge:GetMeterExportChannel())
+        setSelectedMeterExport(ClassForge:GetMeterExportType())
         panel:RefreshLocalizedText()
         selectTab("overview")
     end)

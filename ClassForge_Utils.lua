@@ -408,6 +408,79 @@ function ClassForge:IsTargetProfileCompact()
     return self.defaults.profile.targetProfile.compact and true or false
 end
 
+function ClassForge:IsMeterEnabled()
+    local profile = self:GetProfile()
+    local meter = profile and profile.meter or nil
+
+    if meter and meter.enabled ~= nil then
+        return meter.enabled and true or false
+    end
+
+    return self.defaults.profile.meter.enabled and true or false
+end
+
+function ClassForge:IsMeterLocked()
+    local profile = self:GetProfile()
+    local meter = profile and profile.meter or nil
+
+    if meter and meter.locked ~= nil then
+        return meter.locked and true or false
+    end
+
+    return self.defaults.profile.meter.locked and true or false
+end
+
+function ClassForge:GetMeterMaxRows()
+    local profile = self:GetProfile()
+    local meter = profile and profile.meter or nil
+    local value = tonumber(meter and meter.maxRows)
+    if not value then
+        value = tonumber(self.defaults.profile.meter.maxRows) or 5
+    end
+
+    if value < 3 then
+        value = 3
+    elseif value > 10 then
+        value = 10
+    end
+
+    return math.floor(value + 0.5)
+end
+
+function ClassForge:IsMeterSectionEnabled(key)
+    local profile = self:GetProfile()
+    local meter = profile and profile.meter or nil
+    local defaults = self.defaults.profile.meter
+
+    if meter and meter[key] ~= nil then
+        return meter[key] and true or false
+    end
+
+    return defaults[key] and true or false
+end
+
+function ClassForge:GetMeterExportType()
+    local profile = self:GetProfile()
+    local meter = profile and profile.meter or nil
+    local exportType = self:Trim(meter and meter.exportType or "")
+    if exportType == "" then
+        exportType = self.defaults.profile.meter.exportType
+    end
+
+    return exportType
+end
+
+function ClassForge:GetMeterExportChannel()
+    local profile = self:GetProfile()
+    local meter = profile and profile.meter or nil
+    local channel = self:Trim(meter and meter.exportChannel or "")
+    if channel == "" then
+        channel = self.defaults.profile.meter.exportChannel
+    end
+
+    return channel
+end
+
 function ClassForge:GetCacheEntryCount()
     local total = 0
 

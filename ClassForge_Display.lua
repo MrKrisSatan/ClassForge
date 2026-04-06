@@ -11,9 +11,729 @@ function ClassForge:InitDisplay()
     self:CreateCharacterPanel()
     self:CreateTargetClassTag()
     self:CreateTargetProfile()
+    self:CreateMeterPanel()
     self:SetupInspectHooks()
     self:SetupMapColorHooks()
     self:SetupChatDecorators()
+end
+
+function ClassForge:GetMeterPosition()
+    local profile = self:GetProfile()
+    local position = profile and profile.meterPosition or nil
+    local defaults = self.defaults.profile.meterPosition
+
+    return {
+        point = position and position.point or defaults.point,
+        relativePoint = position and position.relativePoint or defaults.relativePoint,
+        x = position and position.x or defaults.x,
+        y = position and position.y or defaults.y,
+    }
+end
+
+function ClassForge:ApplyMeterPosition()
+    if not self.meterPanel or not UIParent then
+        return
+    end
+
+    local position = self:GetMeterPosition()
+    self.meterPanel:ClearAllPoints()
+    self.meterPanel:SetPoint(position.point, UIParent, position.relativePoint, position.x, position.y)
+end
+
+function ClassForge:SaveMeterPosition()
+    if not self.meterPanel then
+        return
+    end
+
+    local point, _, relativePoint, x, y = self.meterPanel:GetPoint(1)
+    if not point or not relativePoint then
+        return
+    end
+
+    local function round(value)
+        if not value then
+            return 0
+        end
+        if value >= 0 then
+            return math.floor(value + 0.5)
+        end
+
+        return math.ceil(value - 0.5)
+    end
+
+    ClassForgeDB.profile.meterPosition = {
+        point = point,
+        relativePoint = relativePoint,
+        x = round(x),
+        y = round(y),
+    }
+end
+
+function ClassForge:ResetMeterPosition()
+    ClassForgeDB.profile.meterPosition = {
+        point = self.defaults.profile.meterPosition.point,
+        relativePoint = self.defaults.profile.meterPosition.relativePoint,
+        x = self.defaults.profile.meterPosition.x,
+        y = self.defaults.profile.meterPosition.y,
+    }
+    self:ApplyMeterPosition()
+end
+
+function ClassForge:SetMeterEnabled(enabled)
+    ClassForgeDB.profile.meter = ClassForgeDB.profile.meter or {}
+    ClassForgeDB.profile.meter.enabled = enabled and true or false
+    self:UpdateMeterPanel()
+end
+
+function ClassForge:SetMeterLocked(locked)
+    ClassForgeDB.profile.meter = ClassForgeDB.profile.meter or {}
+    ClassForgeDB.profile.meter.locked = locked and true or false
+
+    if self.meterPanel and self.meterPanel.hintText then
+        self.meterPanel.hintText:SetText(locked and self:L("locked") or self:L("shift_drag"))
+    end
+end
+
+function ClassForge:SetMeterSectionEnabled(key, enabled)
+    ClassForgeDB.profile.meter = ClassForgeDB.profile.meter or {}
+    ClassForgeDB.profile.meter[key] = enabled and true or false
+    self:UpdateMeterPanel()
+end
+
+function ClassForge:SetMeterMaxRows(value)
+    ClassForgeDB.profile.meter = ClassForgeDB.profile.meter or {}
+    local numeric = tonumber(value) or self.defaults.profile.meter.maxRows
+    if numeric < 3 then
+        numeric = 3
+    elseif numeric > 10 then
+        numeric = 10
+    end
+    ClassForgeDB.profile.meter.maxRows = math.floor(numeric + 0.5)
+    self:UpdateMeterPanel()
+end
+
+function ClassForge:SetMeterExportTarget(exportType)
+    ClassForgeDB.profile.meter = ClassForgeDB.profile.meter or {}
+    ClassForgeDB.profile.meter.exportType = self:Trim(exportType) ~= "" and exportType or self.defaults.profile.meter.exportType
+end
+
+function ClassForge:SetMeterExportChannel(channelName)
+    ClassForgeDB.profile.meter = ClassForgeDB.profile.meter or {}
+    ClassForgeDB.profile.meter.exportChannel = self:Trim(channelName) ~= "" and self:Trim(channelName) or self.defaults.profile.meter.exportChannel
+end
+
+function ClassForge:IsTrackedGroupPlayer(name)
+    local normalized = self:NormalizePlayerName(name)
+    local playerName = self:NormalizePlayerName(UnitName("player"))
+    if not normalized then
+        return false
+    end
+
+    if normalized == playerName then
+        return true
+    end
+
+    if GetNumRaidMembers and (GetNumRaidMembers() or 0) > 0 then
+        for index = 1, MAX_RAID_MEMBERS do
+            local unit = "raid" .. index
+            if UnitExists(unit) and UnitIsPlayer(unit) then
+                if self:NormalizePlayerName(UnitName(unit)) == normalized then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
+    for index = 1, MAX_PARTY_MEMBERS do
+        local unit = "party" .. index
+        if UnitExists(unit) and UnitIsPlayer(unit) then
+            if self:NormalizePlayerName(UnitName(unit)) == normalized then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+function ClassForge:IsTrackedCombatSource(sourceFlags, sourceName, sourceGUID)
+    local playerGUID = UnitGUID and UnitGUID("player") or nil
+    if playerGUID and sourceGUID and playerGUID == sourceGUID then
+        return true
+    end
+
+    return self:IsTrackedGroupPlayer(sourceName)
+end
+
+function ClassForge:ResetMeterCombat()
+    self.meterState = self.meterState or {}
+    self.meterState.combat = {
+        active = false,
+        started = 0,
+        ended = 0,
+        damage = {},
+        healing = {},
+    }
+    self:UpdateMeterPanel()
+end
+
+function ClassForge:ResetMeterData()
+    self:ResetMeterCombat()
+end
+
+function ClassForge:EnsureMeterCombatActive()
+    self.meterState = self.meterState or {}
+    self.meterState.combat = self.meterState.combat or {
+        active = false,
+        started = 0,
+        ended = 0,
+        damage = {},
+        healing = {},
+    }
+
+    local combat = self.meterState.combat
+    if not combat.started or combat.started == 0 then
+        combat.started = time()
+    end
+    combat.active = true
+
+    return combat
+end
+
+function ClassForge:GetMeterCombatDuration()
+    local combat = self.meterState and self.meterState.combat or nil
+    if not combat or not combat.started or combat.started <= 0 then
+        return 1
+    end
+
+    local finish = combat.active and time() or (combat.ended or time())
+    local duration = finish - combat.started
+    if duration < 1 then
+        duration = 1
+    end
+
+    return duration
+end
+
+function ClassForge:GetMeterEntry(container, name)
+    local normalized = self:NormalizePlayerName(name)
+    if not normalized then
+        return nil
+    end
+
+    container[normalized] = container[normalized] or {
+        name = normalized,
+        total = 0,
+        spells = {},
+    }
+
+    return container[normalized]
+end
+
+function ClassForge:RecordMeterDamage(sourceName, spellName, amount, sourceFlags, sourceGUID)
+    if (not sourceName and not sourceGUID) or not amount or amount <= 0 or not self:IsTrackedCombatSource(sourceFlags, sourceName, sourceGUID) then
+        return
+    end
+
+    local combat = self:EnsureMeterCombatActive()
+    local entry = self:GetMeterEntry(combat.damage, sourceName or UnitName("player"))
+    if not entry then
+        return
+    end
+
+    local spellKey = self:Trim(spellName) ~= "" and spellName or "Melee"
+    entry.total = (entry.total or 0) + amount
+    entry.spells[spellKey] = (entry.spells[spellKey] or 0) + amount
+end
+
+function ClassForge:RecordMeterHealing(sourceName, amount, sourceFlags, sourceGUID)
+    if (not sourceName and not sourceGUID) or not amount or amount <= 0 or not self:IsTrackedCombatSource(sourceFlags, sourceName, sourceGUID) then
+        return
+    end
+
+    local combat = self:EnsureMeterCombatActive()
+    local entry = self:GetMeterEntry(combat.healing, sourceName or UnitName("player"))
+    if not entry then
+        return
+    end
+
+    entry.total = (entry.total or 0) + amount
+end
+
+function ClassForge:GetMeterIdentityText(name)
+    local data = self:GetDataForName(name)
+    local displayName = self:NormalizePlayerName(name) or name or self:L("unknown")
+    if data and data.className then
+        return displayName .. " (" .. self:GetColoredClassText(data) .. ")"
+    end
+
+    return displayName
+end
+
+function ClassForge:GetPlainMeterIdentityText(name)
+    local data = self:GetDataForName(name)
+    local displayName = self:NormalizePlayerName(name) or name or self:L("unknown")
+    if data and data.className then
+        return displayName .. " (" .. (data.className or self:L("unknown")) .. ")"
+    end
+
+    return displayName
+end
+
+function ClassForge:GetMeterTopSpellText()
+    local combat = self.meterState and self.meterState.combat or nil
+    local playerName = UnitName("player")
+    local entry = nil
+    if combat and combat.damage and playerName then
+        entry = combat.damage[self:NormalizePlayerName(playerName)]
+    end
+    if not entry or not entry.spells then
+        return self:L("none")
+    end
+
+    local bestSpell, bestAmount
+    for spellName, amount in pairs(entry.spells) do
+        if not bestAmount or amount > bestAmount then
+            bestSpell = spellName
+            bestAmount = amount
+        end
+    end
+
+    if not bestSpell then
+        return self:L("none")
+    end
+
+    return string.format("%s (%d)", bestSpell, bestAmount or 0)
+end
+
+function ClassForge:GetMeterTopSpellForName(name)
+    local combat = self.meterState and self.meterState.combat or nil
+    local normalized = self:NormalizePlayerName(name)
+    local entry = combat and combat.damage and normalized and combat.damage[normalized] or nil
+    if not entry or not entry.spells then
+        return self:L("none")
+    end
+
+    local bestSpell, bestAmount
+    for spellName, amount in pairs(entry.spells) do
+        if not bestAmount or amount > bestAmount then
+            bestSpell = spellName
+            bestAmount = amount
+        end
+    end
+
+    if not bestSpell then
+        return self:L("none")
+    end
+
+    return string.format("%s (%d)", bestSpell, bestAmount or 0)
+end
+
+function ClassForge:GetMeterLeaderText(containerName, perSecond)
+    local combat = self.meterState and self.meterState.combat or nil
+    local container = combat and combat[containerName] or nil
+    if not container then
+        return self:L("none")
+    end
+
+    local duration = self:GetMeterCombatDuration()
+    local bestEntry
+    for _, entry in pairs(container) do
+        if not bestEntry or (entry.total or 0) > (bestEntry.total or 0) then
+            bestEntry = entry
+        end
+    end
+
+    if not bestEntry then
+        return self:L("none")
+    end
+
+    local value = bestEntry.total or 0
+    if perSecond then
+        value = math.floor((value / duration) + 0.5)
+    end
+
+    return string.format("%s (%d)", self:GetMeterIdentityText(bestEntry.name), value)
+end
+
+function ClassForge:GetThreatLeaderText()
+    if not UnitDetailedThreatSituation or not UnitExists("target") or not UnitCanAttack("player", "target") then
+        return self:L("none")
+    end
+
+    local bestName
+    local bestThreat = -1
+    local function checkUnit(unit)
+        if UnitExists(unit) and UnitIsPlayer(unit) then
+            local _, _, percent = UnitDetailedThreatSituation(unit, "target")
+            percent = tonumber(percent) or 0
+            if percent > bestThreat then
+                bestThreat = percent
+                bestName = UnitName(unit)
+            end
+        end
+    end
+
+    checkUnit("player")
+    if GetNumRaidMembers and (GetNumRaidMembers() or 0) > 0 then
+        for index = 1, MAX_RAID_MEMBERS do
+            checkUnit("raid" .. index)
+        end
+    else
+        for index = 1, MAX_PARTY_MEMBERS do
+            checkUnit("party" .. index)
+        end
+    end
+
+    if not bestName then
+        return self:L("none")
+    end
+
+    return string.format("%s (%.0f%%)", self:GetMeterIdentityText(bestName), bestThreat)
+end
+
+function ClassForge:GetThreatTable()
+    local threats = {}
+    if not UnitDetailedThreatSituation or not UnitExists("target") or not UnitCanAttack("player", "target") then
+        return threats
+    end
+
+    local function addUnit(unit)
+        if UnitExists(unit) and UnitIsPlayer(unit) then
+            local name = UnitName(unit)
+            local _, _, percent = UnitDetailedThreatSituation(unit, "target")
+            if name and percent then
+                threats[self:NormalizePlayerName(name)] = tonumber(percent) or 0
+            end
+        end
+    end
+
+    addUnit("player")
+    if GetNumRaidMembers and (GetNumRaidMembers() or 0) > 0 then
+        for index = 1, MAX_RAID_MEMBERS do
+            addUnit("raid" .. index)
+        end
+    else
+        for index = 1, MAX_PARTY_MEMBERS do
+            addUnit("party" .. index)
+        end
+    end
+
+    return threats
+end
+
+function ClassForge:BuildMeterText()
+    local combat = self.meterState and self.meterState.combat or nil
+
+    if not combat or ((not next(combat.damage or {})) and (not next(combat.healing or {}))) then
+        return self:L("meter_waiting")
+    end
+
+    local duration = self:GetMeterCombatDuration()
+    local maxRows = self:GetMeterMaxRows()
+    local entriesByName = {}
+    local order = {}
+    local threatByName = self:GetThreatTable()
+
+    local function ensureEntry(name)
+        local normalized = self:NormalizePlayerName(name)
+        if not normalized then
+            return nil
+        end
+        if not entriesByName[normalized] then
+            entriesByName[normalized] = {
+                name = normalized,
+                damage = 0,
+                healing = 0,
+            }
+            order[#order + 1] = entriesByName[normalized]
+        end
+
+        return entriesByName[normalized]
+    end
+
+    for _, entry in pairs(combat.damage or {}) do
+        local row = ensureEntry(entry.name)
+        if row then
+            row.damage = entry.total or 0
+        end
+    end
+
+    for _, entry in pairs(combat.healing or {}) do
+        local row = ensureEntry(entry.name)
+        if row then
+            row.healing = entry.total or 0
+        end
+    end
+
+    for normalized, percent in pairs(threatByName) do
+        local row = ensureEntry(normalized)
+        if row then
+            row.threat = percent
+        end
+    end
+
+    table.sort(order, function(left, right)
+        return (left.damage or 0) > (right.damage or 0)
+    end)
+
+    if #order == 0 then
+        return self:L("meter_waiting")
+    end
+
+    local header = "Player"
+    if self:IsMeterSectionEnabled("showDps") then
+        header = header .. " | DPS"
+    end
+    if self:IsMeterSectionEnabled("showHealing") then
+        header = header .. " | Heal"
+    end
+    if self:IsMeterSectionEnabled("showThreat") then
+        header = header .. " | Threat"
+    end
+    if self:IsMeterSectionEnabled("showTopSpell") then
+        header = header .. " | " .. self:L("top_spell")
+    end
+
+    local lines = { header }
+    for index = 1, math.min(#order, maxRows) do
+        local row = order[index]
+        local parts = { self:GetMeterIdentityText(row.name) }
+        if self:IsMeterSectionEnabled("showDps") then
+            parts[#parts + 1] = tostring(math.floor(((row.damage or 0) / duration) + 0.5))
+        end
+        if self:IsMeterSectionEnabled("showHealing") then
+            parts[#parts + 1] = tostring(row.healing or 0)
+        end
+        if self:IsMeterSectionEnabled("showThreat") then
+            parts[#parts + 1] = row.threat and string.format("%.0f%%", row.threat) or "-"
+        end
+        if self:IsMeterSectionEnabled("showTopSpell") then
+            parts[#parts + 1] = self:GetMeterTopSpellForName(row.name)
+        end
+        lines[#lines + 1] = table.concat(parts, " | ")
+    end
+
+    return table.concat(lines, "\n")
+end
+
+function ClassForge:BuildMeterExportLines()
+    local combat = self.meterState and self.meterState.combat or nil
+    if not combat or ((not next(combat.damage or {})) and (not next(combat.healing or {}))) then
+        return nil
+    end
+
+    local duration = self:GetMeterCombatDuration()
+    local maxRows = self:GetMeterMaxRows()
+    local entriesByName = {}
+    local order = {}
+    local threatByName = self:GetThreatTable()
+
+    local function ensureEntry(name)
+        local normalized = self:NormalizePlayerName(name)
+        if not normalized then
+            return nil
+        end
+        if not entriesByName[normalized] then
+            entriesByName[normalized] = {
+                name = normalized,
+                damage = 0,
+                healing = 0,
+            }
+            order[#order + 1] = entriesByName[normalized]
+        end
+
+        return entriesByName[normalized]
+    end
+
+    for _, entry in pairs(combat.damage or {}) do
+        local row = ensureEntry(entry.name)
+        if row then
+            row.damage = entry.total or 0
+        end
+    end
+
+    for _, entry in pairs(combat.healing or {}) do
+        local row = ensureEntry(entry.name)
+        if row then
+            row.healing = entry.total or 0
+        end
+    end
+
+    for normalized, percent in pairs(threatByName) do
+        local row = ensureEntry(normalized)
+        if row then
+            row.threat = percent
+        end
+    end
+
+    table.sort(order, function(left, right)
+        return (left.damage or 0) > (right.damage or 0)
+    end)
+
+    if #order == 0 then
+        return nil
+    end
+
+    local header = "Player"
+    if self:IsMeterSectionEnabled("showDps") then
+        header = header .. " | DPS"
+    end
+    if self:IsMeterSectionEnabled("showHealing") then
+        header = header .. " | Heal"
+    end
+    if self:IsMeterSectionEnabled("showThreat") then
+        header = header .. " | Threat"
+    end
+    if self:IsMeterSectionEnabled("showTopSpell") then
+        header = header .. " | " .. self:L("top_spell")
+    end
+
+    local lines = { "[ClassForge Meter]", header }
+    for index = 1, math.min(#order, maxRows) do
+        local row = order[index]
+        local parts = { self:GetPlainMeterIdentityText(row.name) }
+        if self:IsMeterSectionEnabled("showDps") then
+            parts[#parts + 1] = tostring(math.floor(((row.damage or 0) / duration) + 0.5))
+        end
+        if self:IsMeterSectionEnabled("showHealing") then
+            parts[#parts + 1] = tostring(row.healing or 0)
+        end
+        if self:IsMeterSectionEnabled("showThreat") then
+            parts[#parts + 1] = row.threat and string.format("%.0f%%", row.threat) or "-"
+        end
+        if self:IsMeterSectionEnabled("showTopSpell") then
+            parts[#parts + 1] = self:GetMeterTopSpellForName(row.name)
+        end
+        lines[#lines + 1] = table.concat(parts, " | ")
+    end
+
+    return lines
+end
+
+function ClassForge:ExportMeterToChat()
+    if not SendChatMessage then
+        return
+    end
+
+    local lines = self:BuildMeterExportLines()
+    if not lines then
+        self:Print(self:L("meter_waiting"))
+        return
+    end
+
+    local exportType = self:GetMeterExportType()
+    local channelName = self:GetMeterExportChannel()
+
+    if exportType == "CHANNEL" then
+        local channelId = GetChannelName and GetChannelName(channelName) or 0
+        if not channelId or channelId == 0 then
+            self:Print("Channel not found: " .. channelName)
+            return
+        end
+        for _, line in ipairs(lines) do
+            SendChatMessage(line, "CHANNEL", nil, channelId)
+        end
+        return
+    end
+
+    for _, line in ipairs(lines) do
+        SendChatMessage(line, exportType)
+    end
+end
+
+function ClassForge:CreateMeterPanel()
+    if self.meterPanel then
+        return
+    end
+
+    local frame = CreateFrame("Frame", "ClassForgeMeterPanel", UIParent)
+    frame:SetWidth(520)
+    frame:SetHeight(180)
+    frame:SetFrameStrata("MEDIUM")
+    frame:SetFrameLevel(10)
+    frame:SetClampedToScreen(true)
+    frame:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true,
+        tileSize = 16,
+        edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 },
+    })
+    frame:SetBackdropColor(0, 0, 0, 0.85)
+    frame:EnableMouse(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetMovable(true)
+    frame:SetScript("OnDragStart", function(selfFrame)
+        if IsShiftKeyDown() and not ClassForge:IsMeterLocked() then
+            selfFrame:StartMoving()
+        end
+    end)
+    frame:SetScript("OnDragStop", function(selfFrame)
+        selfFrame:StopMovingOrSizing()
+        ClassForge:SaveMeterPosition()
+    end)
+
+    frame.title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    frame.title:SetPoint("TOPLEFT", 10, -10)
+    frame.title:SetText("ClassForge")
+
+    frame.resetButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    frame.resetButton:SetWidth(48)
+    frame.resetButton:SetHeight(18)
+    frame.resetButton:SetPoint("TOPRIGHT", -8, -8)
+    frame.resetButton:SetText(self:L("reset"))
+    frame.resetButton:SetScript("OnClick", function()
+        ClassForge:ResetMeterData()
+    end)
+
+    frame.exportButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    frame.exportButton:SetWidth(48)
+    frame.exportButton:SetHeight(18)
+    frame.exportButton:SetPoint("RIGHT", frame.resetButton, "LEFT", -6, 0)
+    frame.exportButton:SetText("Send")
+    frame.exportButton:SetScript("OnClick", function()
+        ClassForge:ExportMeterToChat()
+    end)
+
+    frame.hintText = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    frame.hintText:SetPoint("RIGHT", frame.exportButton, "LEFT", -8, 0)
+    frame.hintText:SetText(self:IsMeterLocked() and self:L("locked") or self:L("shift_drag"))
+
+    frame.text = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    frame.text:SetPoint("TOPLEFT", frame.title, "BOTTOMLEFT", 0, -8)
+    frame.text:SetPoint("BOTTOMRIGHT", -10, 10)
+    frame.text:SetJustifyH("LEFT")
+    frame.text:SetJustifyV("TOP")
+
+    self.meterPanel = frame
+    self:ApplyMeterPosition()
+    self:UpdateMeterPanel()
+end
+
+function ClassForge:UpdateMeterPanel()
+    if not self.meterPanel then
+        return
+    end
+
+    if not self:IsMeterEnabled() then
+        self.meterPanel:Hide()
+        return
+    end
+
+    self.meterPanel.title:SetText((self.name or "ClassForge") .. " " .. self:L("meter_tab"))
+    if self.meterPanel.resetButton then
+        self.meterPanel.resetButton:SetText(self:L("reset"))
+    end
+    if self.meterPanel.exportButton then
+        self.meterPanel.exportButton:SetText(self:L("meter_export"))
+        self.meterPanel.exportButton:SetWidth(math.max(48, self.meterPanel.exportButton:GetTextWidth() + 18))
+    end
+    self.meterPanel.hintText:SetText(self:IsMeterLocked() and self:L("locked") or self:L("shift_drag"))
+    self.meterPanel.text:SetText(self:BuildMeterText())
+    self.meterPanel:Show()
 end
 
 function ClassForge:IsChatDecorationEnabled()

@@ -2,7 +2,7 @@ ClassForge = ClassForge or {}
 
 ClassForge.name = "ClassForge"
 ClassForge.prefix = "CLASSFORGE"
-ClassForge.version = "3.1.0"
+ClassForge.version = "3.5.0"
 ClassForge.dbVersion = 5
 ClassForge.homepage = "https://github.com/MrKrisSatan/ClassForge"
 ClassForge.releasesPage = "https://github.com/MrKrisSatan/ClassForge/releases"
@@ -30,9 +30,26 @@ ClassForge.defaults = {
             locked = false,
             compact = false,
         },
+        meterPosition = {
+            point = "CENTER",
+            relativePoint = "CENTER",
+            x = 320,
+            y = 40,
+        },
         minimapButton = {
             angle = 225,
             hidden = false,
+        },
+        meter = {
+            enabled = true,
+            locked = false,
+            maxRows = 5,
+            showDps = true,
+            showTopSpell = true,
+            showThreat = true,
+            showHealing = true,
+            exportType = "PARTY",
+            exportChannel = "world",
         },
         chat = {
             enabled = false,
@@ -62,6 +79,10 @@ local registeredEvents = {
     "PLAYER_TALENT_UPDATE",
     "PLAYER_ROLES_ASSIGNED",
     "ACTIVE_TALENT_GROUP_CHANGED",
+    "PLAYER_REGEN_DISABLED",
+    "PLAYER_REGEN_ENABLED",
+    "COMBAT_LOG_EVENT_UNFILTERED",
+    "UNIT_COMBAT",
     "CHAT_MSG_ADDON",
     "GROUP_ROSTER_UPDATE",
     "GUILD_ROSTER_UPDATE",
@@ -99,6 +120,7 @@ ClassForge.translations = {
         profile_tab = "Profile",
         display_tab = "Display",
         cache_tab = "Cache",
+        meter_tab = "Meter",
         options_subtitle = "Custom class identities for Wrath 3.3.5a with sync, cache, and map support.",
         language = "Language",
         english = "English",
@@ -165,6 +187,32 @@ ClassForge.translations = {
         realm_aware_names = "Realm-aware names",
         profile_saved = "Profile saved.",
         language_updated = "Language updated.",
+        meter_box = "Meter box",
+        lock_meter = "Lock meter position",
+        reset_meter = "Reset Meter",
+        reset_meter_data = "Reset Data",
+        meter_show_dps = "Show DPS rankings",
+        meter_show_top_spell = "Show your top damage spell",
+        meter_show_threat = "Show highest threat on target",
+        meter_show_healing = "Show healing leader",
+        meter_max_rows = "Max DPS rows",
+        meter_export = "Export Meter",
+        meter_export_target = "Export target",
+        meter_export_channel = "Channel name",
+        export_say = "Say",
+        export_party = "Party",
+        export_raid = "Raid",
+        export_guild = "Guild",
+        export_officer = "Officer",
+        export_yell = "Yell",
+        export_channel = "Channel",
+        meter_hint = "Hold Shift and drag the meter when it is unlocked.",
+        meter_waiting = "Waiting for combat data...",
+        dps_rankings = "DPS Rankings",
+        top_spell = "Top Spell",
+        threat_leader = "Threat",
+        healing_leader = "Healing",
+        none = "None",
         out_of_date = "Your ClassForge version is out of date. Latest seen: %s. You are on %s.",
         newer_user = "%s is using ClassForge %s. Your version is %s.",
     },
@@ -183,6 +231,7 @@ ClassForge.translations = {
         profile_tab = "Perfil",
         display_tab = "Pantalla",
         cache_tab = "Caché",
+        meter_tab = "Medidor",
         options_subtitle = "Identidades de clase personalizadas para Wrath 3.3.5a con sincronización, caché y soporte de mapa.",
         language = "Idioma",
         english = "Inglés",
@@ -249,6 +298,32 @@ ClassForge.translations = {
         realm_aware_names = "Nombres con reino",
         profile_saved = "Perfil guardado.",
         language_updated = "Idioma actualizado.",
+        meter_box = "Caja del medidor",
+        lock_meter = "Bloquear posición del medidor",
+        reset_meter = "Restablecer medidor",
+        reset_meter_data = "Restablecer datos",
+        meter_show_dps = "Mostrar clasificaciones de DPS",
+        meter_show_top_spell = "Mostrar tu hechizo de mayor daño",
+        meter_show_threat = "Mostrar mayor amenaza en el objetivo",
+        meter_show_healing = "Mostrar líder de sanación",
+        meter_max_rows = "Máx. filas de DPS",
+        meter_export = "Exportar medidor",
+        meter_export_target = "Destino de exportación",
+        meter_export_channel = "Nombre del canal",
+        export_say = "Decir",
+        export_party = "Grupo",
+        export_raid = "Banda",
+        export_guild = "Hermandad",
+        export_officer = "Oficial",
+        export_yell = "Gritar",
+        export_channel = "Canal",
+        meter_hint = "Mantén Mayús y arrastra el medidor cuando esté desbloqueado.",
+        meter_waiting = "Esperando datos de combate...",
+        dps_rankings = "Clasificación DPS",
+        top_spell = "Mejor hechizo",
+        threat_leader = "Amenaza",
+        healing_leader = "Sanación",
+        none = "Ninguno",
         out_of_date = "Tu versión de ClassForge está desactualizada. La más nueva detectada es %s. Tú tienes %s.",
         newer_user = "%s está usando ClassForge %s. Tu versión es %s.",
     },
@@ -267,6 +342,7 @@ ClassForge.translations = {
         profile_tab = "Профиль",
         display_tab = "Отображение",
         cache_tab = "Кэш",
+        meter_tab = "Метр",
         options_subtitle = "Пользовательские классы для Wrath 3.3.5a с синхронизацией, кэшем и поддержкой карты.",
         language = "Язык",
         english = "Английский",
@@ -333,6 +409,32 @@ ClassForge.translations = {
         realm_aware_names = "Имена с миром",
         profile_saved = "Профиль сохранен.",
         language_updated = "Язык обновлен.",
+        meter_box = "Окно метра",
+        lock_meter = "Закрепить положение метра",
+        reset_meter = "Сброс метра",
+        reset_meter_data = "Сброс данных",
+        meter_show_dps = "Показывать рейтинг DPS",
+        meter_show_top_spell = "Показывать ваше самое сильное заклинание",
+        meter_show_threat = "Показывать лидера угрозы на цели",
+        meter_show_healing = "Показывать лидера лечения",
+        meter_max_rows = "Макс. строк DPS",
+        meter_export = "Экспорт метра",
+        meter_export_target = "Куда экспортировать",
+        meter_export_channel = "Имя канала",
+        export_say = "Сказать",
+        export_party = "Группа",
+        export_raid = "Рейд",
+        export_guild = "Гильдия",
+        export_officer = "Офицеры",
+        export_yell = "Крик",
+        export_channel = "Канал",
+        meter_hint = "Удерживайте Shift и перетаскивайте метр, когда он не закреплен.",
+        meter_waiting = "Ожидание данных боя...",
+        dps_rankings = "Рейтинг DPS",
+        top_spell = "Лучшее заклинание",
+        threat_leader = "Угроза",
+        healing_leader = "Лечение",
+        none = "Нет",
         out_of_date = "Ваша версия ClassForge устарела. Самая новая замеченная: %s. У вас %s.",
         newer_user = "%s использует ClassForge %s. Ваша версия %s.",
     },
@@ -494,6 +596,9 @@ function ClassForge:RefreshAllDisplays()
     if self.UpdateMapMemberColors then
         self:UpdateMapMemberColors()
     end
+    if self.UpdateMeterPanel then
+        self:UpdateMeterPanel()
+    end
     if self.ScheduleMapMemberUpdate then
         self:ScheduleMapMemberUpdate(0)
     end
@@ -532,6 +637,9 @@ function ClassForge:PLAYER_LOGIN()
     self:SetupSlashCommands()
     self:CreateOptionsPanel()
     self:InitDisplay()
+    if self.ResetMeterCombat then
+        self:ResetMeterCombat()
+    end
     self:RefreshPlayerCache()
     self:BroadcastStartup()
     self:RefreshAllDisplays()
@@ -643,4 +751,133 @@ end
 
 function ClassForge:ACTIVE_TALENT_GROUP_CHANGED()
     self:RefreshRoleFromBlizzard()
+end
+
+function ClassForge:PLAYER_REGEN_DISABLED()
+    if self.ResetMeterCombat then
+        self:ResetMeterCombat()
+        if self.EnsureMeterCombatActive then
+            self:EnsureMeterCombatActive()
+        end
+        self:UpdateMeterPanel()
+    end
+end
+
+function ClassForge:PLAYER_REGEN_ENABLED()
+    if self.meterState and self.meterState.combat then
+        self.meterState.combat.active = false
+        self.meterState.combat.ended = time()
+    end
+    if self.UpdateMeterPanel then
+        self:UpdateMeterPanel()
+    end
+end
+
+function ClassForge:COMBAT_LOG_EVENT_UNFILTERED(...)
+    if not self.RecordMeterDamage or not self.RecordMeterHealing then
+        return
+    end
+
+    local timestamp, eventType, hideCaster, sourceGUID, sourceName, sourceFlags, sourceRaidFlags, destGUID, destName, destFlags, destRaidFlags, arg1, arg2, arg3, arg4, arg5, arg6, arg7 = ...
+    if not eventType and CombatLogGetCurrentEventInfo then
+        timestamp, eventType, hideCaster, sourceGUID, sourceName, sourceFlags, sourceRaidFlags, destGUID, destName, destFlags, destRaidFlags, arg1, arg2, arg3, arg4, arg5, arg6, arg7 = CombatLogGetCurrentEventInfo()
+    end
+    if not eventType and _G.arg2 then
+        timestamp = _G.arg1
+        eventType = _G.arg2
+        hideCaster = _G.arg3
+        sourceGUID = _G.arg4
+        sourceName = _G.arg5
+        sourceFlags = _G.arg6
+        sourceRaidFlags = _G.arg7
+        destGUID = _G.arg8
+        destName = _G.arg9
+        destFlags = _G.arg10
+        destRaidFlags = _G.arg11
+        arg1 = _G.arg12
+        arg2 = _G.arg13
+        arg3 = _G.arg14
+        arg4 = _G.arg15
+        arg5 = _G.arg16
+        arg6 = _G.arg17
+        arg7 = _G.arg18
+    end
+
+    if not eventType then
+        return
+    end
+
+    if not sourceName and UnitGUID and sourceGUID and sourceGUID == UnitGUID("player") then
+        sourceName = UnitName("player")
+    end
+
+    local function firstPositiveNumber(...)
+        for index = 1, select("#", ...) do
+            local value = select(index, ...)
+            local numeric = tonumber(value)
+            if numeric and numeric > 0 then
+                return numeric
+            end
+        end
+
+        return 0
+    end
+
+    local spellLabel = "Melee"
+    if type(arg2) == "string" and arg2 ~= "" then
+        spellLabel = arg2
+    elseif type(arg1) == "string" and arg1 ~= "" then
+        spellLabel = arg1
+    end
+
+    if eventType == "SWING_DAMAGE" then
+        self:RecordMeterDamage(sourceName, "Melee", tonumber(arg1) or 0, sourceFlags, sourceGUID)
+    elseif eventType == "RANGE_DAMAGE" or eventType == "SPELL_DAMAGE" or eventType == "SPELL_PERIODIC_DAMAGE" then
+        self:RecordMeterDamage(sourceName, spellLabel, firstPositiveNumber(arg4, arg5, arg6, arg7, arg1, arg3), sourceFlags, sourceGUID)
+    elseif eventType == "DAMAGE_SHIELD" or eventType == "DAMAGE_SPLIT" then
+        self:RecordMeterDamage(sourceName, spellLabel, firstPositiveNumber(arg4, arg5, arg6, arg7, arg1, arg3), sourceFlags, sourceGUID)
+    elseif eventType == "SPELL_HEAL" or eventType == "SPELL_PERIODIC_HEAL" then
+        self:RecordMeterHealing(sourceName, firstPositiveNumber(arg4, arg5, arg6, arg7, arg1, arg3), sourceFlags, sourceGUID)
+    elseif eventType == "SPELL_BUILDING_DAMAGE" then
+        self:RecordMeterDamage(sourceName, spellLabel, firstPositiveNumber(arg4, arg5, arg6, arg7, arg1, arg3), sourceFlags, sourceGUID)
+    end
+
+    if self.UpdateMeterPanel then
+        self:UpdateMeterPanel()
+    end
+end
+
+function ClassForge:UNIT_COMBAT(unit, action, descriptor, amount, damageType)
+    if not unit or not self.RecordMeterDamage or not self.RecordMeterHealing then
+        return
+    end
+
+    local isTrackedUnit = (unit == "player")
+    if not isTrackedUnit then
+        if string.find(unit, "^party%d+$") or string.find(unit, "^raid%d+$") then
+            isTrackedUnit = true
+        end
+    end
+
+    if not isTrackedUnit or not UnitExists(unit) or not UnitIsPlayer(unit) then
+        return
+    end
+
+    local sourceName = UnitName(unit)
+    local sourceGUID = UnitGUID and UnitGUID(unit) or nil
+    local value = tonumber(amount) or 0
+    local label = self:Trim(descriptor) ~= "" and descriptor or "Melee"
+    local normalizedAction = self:Trim(action):upper()
+
+    if normalizedAction == "WOUND" or normalizedAction == "DAMAGE" or normalizedAction == "SPELL" or normalizedAction == "SPELL_DAMAGE" then
+        self:RecordMeterDamage(sourceName, label, value, nil, sourceGUID)
+    elseif normalizedAction == "HEAL" or normalizedAction == "SPELL_HEAL" then
+        self:RecordMeterHealing(sourceName, value, nil, sourceGUID)
+    else
+        return
+    end
+
+    if self.UpdateMeterPanel then
+        self:UpdateMeterPanel()
+    end
 end
