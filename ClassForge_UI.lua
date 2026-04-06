@@ -992,6 +992,7 @@ function ClassForge:CreateOptionsPanel()
             ClassForge:L("meter_box") .. ": " .. (ClassForge:IsMeterEnabled() and ClassForge:L("shown") or ClassForge:L("hidden"))
             .. " |cff808080-|r " .. ClassForge:L("locked") .. ": " .. (ClassForge:IsMeterLocked() and ClassForge:L("yes") or ClassForge:L("no"))
             .. " |cff808080-|r " .. ClassForge:L("meter_max_rows") .. ": " .. tostring(ClassForge:GetMeterMaxRows())
+            .. " |cff808080-|r " .. ClassForge:L("meter_size") .. ": " .. math.floor((ClassForge:GetMeterSize().width or 0) + 0.5) .. "x" .. math.floor((ClassForge:GetMeterSize().height or 0) + 0.5)
         )
     end
 

@@ -430,6 +430,18 @@ function ClassForge:IsMeterLocked()
     return self.defaults.profile.meter.locked and true or false
 end
 
+function ClassForge:GetMeterView()
+    local profile = self:GetProfile()
+    local meter = profile and profile.meter or nil
+    local value = string.lower(self:Trim(meter and meter.view or ""))
+
+    if value ~= "dps" and value ~= "threat" and value ~= "healing_done" and value ~= "healing_received" then
+        value = string.lower(self.defaults.profile.meter.view or "dps")
+    end
+
+    return value ~= "" and value or "dps"
+end
+
 function ClassForge:GetMeterMaxRows()
     local profile = self:GetProfile()
     local meter = profile and profile.meter or nil

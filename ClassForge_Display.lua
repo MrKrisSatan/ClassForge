@@ -79,9 +79,75 @@ function ClassForge:ResetMeterPosition()
     self:ApplyMeterPosition()
 end
 
+function ClassForge:GetMeterSize()
+    local profile = self:GetProfile()
+    local size = profile and profile.meterSize or nil
+    local defaults = self.defaults.profile.meterSize
+    local width = tonumber(size and size.width) or defaults.width
+    local height = tonumber(size and size.height) or defaults.height
+
+    if width < 420 then
+        width = 420
+    elseif width > 900 then
+        width = 900
+    end
+
+    if height < 140 then
+        height = 140
+    elseif height > 520 then
+        height = 520
+    end
+
+    return {
+        width = math.floor(width + 0.5),
+        height = math.floor(height + 0.5),
+    }
+end
+
+function ClassForge:ApplyMeterSize()
+    if not self.meterPanel then
+        return
+    end
+
+    local size = self:GetMeterSize()
+    self.meterPanel:SetWidth(size.width)
+    self.meterPanel:SetHeight(size.height)
+end
+
+function ClassForge:SaveMeterSize()
+    if not self.meterPanel then
+        return
+    end
+
+    ClassForgeDB.profile.meterSize = {
+        width = math.floor(self.meterPanel:GetWidth() + 0.5),
+        height = math.floor(self.meterPanel:GetHeight() + 0.5),
+    }
+end
+
+function ClassForge:ResetMeterSize()
+    ClassForgeDB.profile.meterSize = {
+        width = self.defaults.profile.meterSize.width,
+        height = self.defaults.profile.meterSize.height,
+    }
+    self:ApplyMeterSize()
+    self:UpdateMeterPanel()
+end
+
 function ClassForge:SetMeterEnabled(enabled)
     ClassForgeDB.profile.meter = ClassForgeDB.profile.meter or {}
     ClassForgeDB.profile.meter.enabled = enabled and true or false
+    self:UpdateMeterPanel()
+end
+
+function ClassForge:SetMeterView(view)
+    ClassForgeDB.profile.meter = ClassForgeDB.profile.meter or {}
+    local normalized = string.lower(self:Trim(view))
+    if normalized ~= "dps" and normalized ~= "threat" and normalized ~= "healing_done" and normalized ~= "healing_received" then
+        normalized = self.defaults.profile.meter.view or "dps"
+    end
+
+    ClassForgeDB.profile.meter.view = normalized
     self:UpdateMeterPanel()
 end
 
@@ -174,6 +240,7 @@ function ClassForge:ResetMeterCombat()
         ended = 0,
         damage = {},
         healing = {},
+        healingReceived = {},
     }
     self:UpdateMeterPanel()
 end
@@ -183,6 +250,10 @@ function ClassForge:ResetMeterData()
 end
 
 function ClassForge:EnsureMeterCombatActive()
+    if not self:IsMeterEnabled() then
+        return nil
+    end
+
     self.meterState = self.meterState or {}
     self.meterState.combat = self.meterState.combat or {
         active = false,
@@ -190,11 +261,13 @@ function ClassForge:EnsureMeterCombatActive()
         ended = 0,
         damage = {},
         healing = {},
+        healingReceived = {},
     }
 
     local combat = self.meterState.combat
+    combat.healingReceived = combat.healingReceived or {}
     if not combat.started or combat.started == 0 then
-        combat.started = time()
+        combat.started = (GetTime and GetTime()) or time()
     end
     combat.active = true
 
@@ -207,7 +280,8 @@ function ClassForge:GetMeterCombatDuration()
         return 1
     end
 
-    local finish = combat.active and time() or (combat.ended or time())
+    local now = (GetTime and GetTime()) or time()
+    local finish = combat.active and now or (combat.ended or now)
     local duration = finish - combat.started
     if duration < 1 then
         duration = 1
@@ -232,6 +306,10 @@ function ClassForge:GetMeterEntry(container, name)
 end
 
 function ClassForge:RecordMeterDamage(sourceName, spellName, amount, sourceFlags, sourceGUID)
+    if not self:IsMeterEnabled() then
+        return
+    end
+
     if (not sourceName and not sourceGUID) or not amount or amount <= 0 or not self:IsTrackedCombatSource(sourceFlags, sourceName, sourceGUID) then
         return
     end
@@ -247,7 +325,11 @@ function ClassForge:RecordMeterDamage(sourceName, spellName, amount, sourceFlags
     entry.spells[spellKey] = (entry.spells[spellKey] or 0) + amount
 end
 
-function ClassForge:RecordMeterHealing(sourceName, amount, sourceFlags, sourceGUID)
+function ClassForge:RecordMeterHealing(sourceName, amount, sourceFlags, sourceGUID, destName)
+    if not self:IsMeterEnabled() then
+        return
+    end
+
     if (not sourceName and not sourceGUID) or not amount or amount <= 0 or not self:IsTrackedCombatSource(sourceFlags, sourceName, sourceGUID) then
         return
     end
@@ -259,6 +341,13 @@ function ClassForge:RecordMeterHealing(sourceName, amount, sourceFlags, sourceGU
     end
 
     entry.total = (entry.total or 0) + amount
+
+    if destName then
+        local receivedEntry = self:GetMeterEntry(combat.healingReceived, destName)
+        if receivedEntry then
+            receivedEntry.total = (receivedEntry.total or 0) + amount
+        end
+    end
 end
 
 function ClassForge:GetMeterIdentityText(name)
@@ -423,15 +512,25 @@ function ClassForge:GetThreatTable()
     return threats
 end
 
-function ClassForge:BuildMeterText()
+function ClassForge:GetMeterRows(view)
     local combat = self.meterState and self.meterState.combat or nil
-
-    if not combat or ((not next(combat.damage or {})) and (not next(combat.healing or {}))) then
-        return self:L("meter_waiting")
+    local selectedView = view or self:GetMeterView()
+    if not combat then
+        return nil, self:GetMeterCombatDuration()
     end
 
-    local duration = self:GetMeterCombatDuration()
-    local maxRows = self:GetMeterMaxRows()
+    if selectedView == "dps" and (not next(combat.damage or {})) then
+        return nil, self:GetMeterCombatDuration()
+    end
+
+    if selectedView == "healing_done" and (not next(combat.healing or {})) then
+        return nil, self:GetMeterCombatDuration()
+    end
+
+    if selectedView == "healing_received" and (not next(combat.healingReceived or {})) then
+        return nil, self:GetMeterCombatDuration()
+    end
+
     local entriesByName = {}
     local order = {}
     local threatByName = self:GetThreatTable()
@@ -453,157 +552,167 @@ function ClassForge:BuildMeterText()
         return entriesByName[normalized]
     end
 
-    for _, entry in pairs(combat.damage or {}) do
-        local row = ensureEntry(entry.name)
-        if row then
-            row.damage = entry.total or 0
+    if selectedView == "dps" then
+        for _, entry in pairs(combat.damage or {}) do
+            local row = ensureEntry(entry.name)
+            if row then
+                row.damage = entry.total or 0
+            end
         end
-    end
 
-    for _, entry in pairs(combat.healing or {}) do
-        local row = ensureEntry(entry.name)
-        if row then
-            row.healing = entry.total or 0
+        for _, entry in pairs(combat.healing or {}) do
+            local row = ensureEntry(entry.name)
+            if row then
+                row.healing = entry.total or 0
+            end
         end
-    end
 
-    for normalized, percent in pairs(threatByName) do
-        local row = ensureEntry(normalized)
-        if row then
-            row.threat = percent
+        for normalized, percent in pairs(threatByName) do
+            local row = ensureEntry(normalized)
+            if row then
+                row.threat = percent
+            end
+        end
+    elseif selectedView == "threat" then
+        for normalized, percent in pairs(threatByName) do
+            local row = ensureEntry(normalized)
+            if row then
+                row.threat = percent
+            end
+        end
+    elseif selectedView == "healing_done" then
+        for _, entry in pairs(combat.healing or {}) do
+            local row = ensureEntry(entry.name)
+            if row then
+                row.healing = entry.total or 0
+            end
+        end
+    elseif selectedView == "healing_received" then
+        for _, entry in pairs(combat.healingReceived or {}) do
+            local row = ensureEntry(entry.name)
+            if row then
+                row.received = entry.total or 0
+            end
         end
     end
 
     table.sort(order, function(left, right)
-        return (left.damage or 0) > (right.damage or 0)
+        local leftValue = 0
+        local rightValue = 0
+
+        if selectedView == "threat" then
+            leftValue = left.threat or 0
+            rightValue = right.threat or 0
+        elseif selectedView == "healing_done" then
+            leftValue = left.healing or 0
+            rightValue = right.healing or 0
+        elseif selectedView == "healing_received" then
+            leftValue = left.received or 0
+            rightValue = right.received or 0
+        else
+            leftValue = left.damage or 0
+            rightValue = right.damage or 0
+        end
+
+        if leftValue == rightValue then
+            return string.lower(left.name or "") < string.lower(right.name or "")
+        end
+
+        return leftValue > rightValue
     end)
 
-    if #order == 0 then
+    return order, self:GetMeterCombatDuration()
+end
+
+function ClassForge:GetMeterRowColor(index, total)
+    local startRed, startGreen, startBlue = self:HexToRGB("CE2029")
+    local endRed, endGreen, endBlue = self:HexToRGB("36454F")
+    local progress = 0
+
+    if total and total > 1 then
+        progress = (index - 1) / (total - 1)
+    end
+
+    local red = startRed + ((endRed - startRed) * progress)
+    local green = startGreen + ((endGreen - startGreen) * progress)
+    local blue = startBlue + ((endBlue - startBlue) * progress)
+
+    return string.format("%02x%02x%02x", math.floor(red * 255 + 0.5), math.floor(green * 255 + 0.5), math.floor(blue * 255 + 0.5))
+end
+
+function ClassForge:BuildMeterText()
+    local selectedView = self:GetMeterView()
+    local rows, duration = self:GetMeterRows(selectedView)
+    if not rows or #rows == 0 then
         return self:L("meter_waiting")
     end
 
+    local maxRows = self:GetMeterMaxRows()
     local header = "Player"
-    if self:IsMeterSectionEnabled("showDps") then
-        header = header .. " | DPS"
-    end
-    if self:IsMeterSectionEnabled("showHealing") then
-        header = header .. " | Heal"
-    end
-    if self:IsMeterSectionEnabled("showThreat") then
-        header = header .. " | Threat"
-    end
-    if self:IsMeterSectionEnabled("showTopSpell") then
-        header = header .. " | " .. self:L("top_spell")
+    if selectedView == "threat" then
+        header = header .. " | " .. self:L("threat_leader")
+    elseif selectedView == "healing_done" then
+        header = header .. " | " .. self:L("healing_leader")
+    elseif selectedView == "healing_received" then
+        header = header .. " | " .. self:L("meter_view_healing_received")
+    else
+        header = header .. " | DPS | Damage | " .. self:L("top_spell")
     end
 
     local lines = { header }
-    for index = 1, math.min(#order, maxRows) do
-        local row = order[index]
+    local visibleRows = math.min(#rows, maxRows)
+    for index = 1, visibleRows do
+        local row = rows[index]
         local parts = { self:GetMeterIdentityText(row.name) }
-        if self:IsMeterSectionEnabled("showDps") then
-            parts[#parts + 1] = tostring(math.floor(((row.damage or 0) / duration) + 0.5))
-        end
-        if self:IsMeterSectionEnabled("showHealing") then
-            parts[#parts + 1] = tostring(row.healing or 0)
-        end
-        if self:IsMeterSectionEnabled("showThreat") then
+        if selectedView == "threat" then
             parts[#parts + 1] = row.threat and string.format("%.0f%%", row.threat) or "-"
-        end
-        if self:IsMeterSectionEnabled("showTopSpell") then
+        elseif selectedView == "healing_done" then
+            parts[#parts + 1] = tostring(row.healing or 0)
+        elseif selectedView == "healing_received" then
+            parts[#parts + 1] = tostring(row.received or 0)
+        else
+            parts[#parts + 1] = tostring(math.floor(((row.damage or 0) / duration) + 0.5))
+            parts[#parts + 1] = tostring(row.damage or 0)
             parts[#parts + 1] = self:GetMeterTopSpellForName(row.name)
         end
-        lines[#lines + 1] = table.concat(parts, " | ")
+        lines[#lines + 1] = string.format("|cff%s%s|r", self:GetMeterRowColor(index, visibleRows), table.concat(parts, " | "))
     end
 
     return table.concat(lines, "\n")
 end
 
 function ClassForge:BuildMeterExportLines()
-    local combat = self.meterState and self.meterState.combat or nil
-    if not combat or ((not next(combat.damage or {})) and (not next(combat.healing or {}))) then
+    local selectedView = self:GetMeterView()
+    local rows, duration = self:GetMeterRows(selectedView)
+    if not rows or #rows == 0 then
         return nil
     end
 
-    local duration = self:GetMeterCombatDuration()
     local maxRows = self:GetMeterMaxRows()
-    local entriesByName = {}
-    local order = {}
-    local threatByName = self:GetThreatTable()
-
-    local function ensureEntry(name)
-        local normalized = self:NormalizePlayerName(name)
-        if not normalized then
-            return nil
-        end
-        if not entriesByName[normalized] then
-            entriesByName[normalized] = {
-                name = normalized,
-                damage = 0,
-                healing = 0,
-            }
-            order[#order + 1] = entriesByName[normalized]
-        end
-
-        return entriesByName[normalized]
-    end
-
-    for _, entry in pairs(combat.damage or {}) do
-        local row = ensureEntry(entry.name)
-        if row then
-            row.damage = entry.total or 0
-        end
-    end
-
-    for _, entry in pairs(combat.healing or {}) do
-        local row = ensureEntry(entry.name)
-        if row then
-            row.healing = entry.total or 0
-        end
-    end
-
-    for normalized, percent in pairs(threatByName) do
-        local row = ensureEntry(normalized)
-        if row then
-            row.threat = percent
-        end
-    end
-
-    table.sort(order, function(left, right)
-        return (left.damage or 0) > (right.damage or 0)
-    end)
-
-    if #order == 0 then
-        return nil
-    end
-
     local header = "Player"
-    if self:IsMeterSectionEnabled("showDps") then
-        header = header .. " | DPS"
-    end
-    if self:IsMeterSectionEnabled("showHealing") then
-        header = header .. " | Heal"
-    end
-    if self:IsMeterSectionEnabled("showThreat") then
-        header = header .. " | Threat"
-    end
-    if self:IsMeterSectionEnabled("showTopSpell") then
-        header = header .. " | " .. self:L("top_spell")
+    if selectedView == "threat" then
+        header = header .. " | " .. self:L("threat_leader")
+    elseif selectedView == "healing_done" then
+        header = header .. " | " .. self:L("healing_leader")
+    elseif selectedView == "healing_received" then
+        header = header .. " | " .. self:L("meter_view_healing_received")
+    else
+        header = header .. " | DPS | Damage | " .. self:L("top_spell")
     end
 
     local lines = { "[ClassForge Meter]", header }
-    for index = 1, math.min(#order, maxRows) do
-        local row = order[index]
+    for index = 1, math.min(#rows, maxRows) do
+        local row = rows[index]
         local parts = { self:GetPlainMeterIdentityText(row.name) }
-        if self:IsMeterSectionEnabled("showDps") then
-            parts[#parts + 1] = tostring(math.floor(((row.damage or 0) / duration) + 0.5))
-        end
-        if self:IsMeterSectionEnabled("showHealing") then
-            parts[#parts + 1] = tostring(row.healing or 0)
-        end
-        if self:IsMeterSectionEnabled("showThreat") then
+        if selectedView == "threat" then
             parts[#parts + 1] = row.threat and string.format("%.0f%%", row.threat) or "-"
-        end
-        if self:IsMeterSectionEnabled("showTopSpell") then
+        elseif selectedView == "healing_done" then
+            parts[#parts + 1] = tostring(row.healing or 0)
+        elseif selectedView == "healing_received" then
+            parts[#parts + 1] = tostring(row.received or 0)
+        else
+            parts[#parts + 1] = tostring(math.floor(((row.damage or 0) / duration) + 0.5))
+            parts[#parts + 1] = tostring(row.damage or 0)
             parts[#parts + 1] = self:GetMeterTopSpellForName(row.name)
         end
         lines[#lines + 1] = table.concat(parts, " | ")
@@ -649,8 +758,8 @@ function ClassForge:CreateMeterPanel()
     end
 
     local frame = CreateFrame("Frame", "ClassForgeMeterPanel", UIParent)
-    frame:SetWidth(520)
-    frame:SetHeight(180)
+    frame:SetMinResize(420, 140)
+    frame:SetMaxResize(900, 520)
     frame:SetFrameStrata("MEDIUM")
     frame:SetFrameLevel(10)
     frame:SetClampedToScreen(true)
@@ -666,6 +775,7 @@ function ClassForge:CreateMeterPanel()
     frame:EnableMouse(true)
     frame:RegisterForDrag("LeftButton")
     frame:SetMovable(true)
+    frame:SetResizable(true)
     frame:SetScript("OnDragStart", function(selfFrame)
         if IsShiftKeyDown() and not ClassForge:IsMeterLocked() then
             selfFrame:StartMoving()
@@ -675,10 +785,48 @@ function ClassForge:CreateMeterPanel()
         selfFrame:StopMovingOrSizing()
         ClassForge:SaveMeterPosition()
     end)
+    frame:SetScript("OnSizeChanged", function(selfFrame, width, height)
+        if selfFrame.scrollChild then
+            selfFrame.scrollChild:SetWidth(math.max(320, width - 38))
+        end
+        if selfFrame.text then
+            selfFrame.text:SetWidth(math.max(300, width - 44))
+        end
+        if selfFrame.scrollFrame then
+            local visibleHeight = math.max(20, selfFrame.scrollFrame:GetHeight() - 4)
+            local contentHeight = selfFrame.text and selfFrame.text:GetStringHeight() or 0
+            selfFrame.scrollChild:SetHeight(math.max(visibleHeight, contentHeight + 8))
+        end
+    end)
 
     frame.title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     frame.title:SetPoint("TOPLEFT", 10, -10)
     frame.title:SetText("ClassForge")
+
+    frame.viewButtons = {}
+    local viewOrder = {
+        { key = "dps", label = "meter_view_dps" },
+        { key = "threat", label = "meter_view_threat" },
+        { key = "healing_done", label = "meter_view_healing_done" },
+        { key = "healing_received", label = "meter_view_healing_received" },
+    }
+    local previousButton
+    for _, viewData in ipairs(viewOrder) do
+        local button = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        button:SetHeight(18)
+        button.viewKey = viewData.key
+        if previousButton then
+            button:SetPoint("TOPLEFT", previousButton, "TOPRIGHT", 4, 0)
+        else
+            button:SetPoint("TOPLEFT", frame.title, "BOTTOMLEFT", 0, -6)
+        end
+        button:SetScript("OnClick", function(selfButton)
+            ClassForge:SetMeterView(selfButton.viewKey)
+        end)
+        button.labelKey = viewData.label
+        frame.viewButtons[#frame.viewButtons + 1] = button
+        previousButton = button
+    end
 
     frame.resetButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     frame.resetButton:SetWidth(48)
@@ -702,14 +850,61 @@ function ClassForge:CreateMeterPanel()
     frame.hintText:SetPoint("RIGHT", frame.exportButton, "LEFT", -8, 0)
     frame.hintText:SetText(self:IsMeterLocked() and self:L("locked") or self:L("shift_drag"))
 
-    frame.text = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    frame.text:SetPoint("TOPLEFT", frame.title, "BOTTOMLEFT", 0, -8)
-    frame.text:SetPoint("BOTTOMRIGHT", -10, 10)
+    frame.scrollFrame = CreateFrame("ScrollFrame", "ClassForgeMeterScrollFrame", frame, "UIPanelScrollFrameTemplate")
+    frame.scrollFrame:SetPoint("TOPLEFT", frame.title, "BOTTOMLEFT", 0, -32)
+    frame.scrollFrame:SetPoint("BOTTOMRIGHT", -28, 12)
+
+    frame.scrollChild = CreateFrame("Frame", nil, frame.scrollFrame)
+    frame.scrollChild:SetWidth(482)
+    frame.scrollChild:SetHeight(120)
+    frame.scrollFrame:SetScrollChild(frame.scrollChild)
+
+    frame.text = frame.scrollChild:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    frame.text:SetPoint("TOPLEFT", 0, 0)
+    frame.text:SetWidth(476)
     frame.text:SetJustifyH("LEFT")
     frame.text:SetJustifyV("TOP")
 
+    frame.resizeHandle = CreateFrame("Button", nil, frame)
+    frame.resizeHandle:SetWidth(18)
+    frame.resizeHandle:SetHeight(18)
+    frame.resizeHandle:SetPoint("BOTTOMRIGHT", -6, 6)
+    frame.resizeHandle:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+    frame.resizeHandle:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+    frame.resizeHandle:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+    frame.resizeHandle:SetScript("OnMouseDown", function()
+        if not ClassForge:IsMeterLocked() then
+            frame:StartSizing("BOTTOMRIGHT")
+        end
+    end)
+    frame.resizeHandle:SetScript("OnMouseUp", function()
+        frame:StopMovingOrSizing()
+        ClassForge:SaveMeterSize()
+        ClassForge:UpdateMeterPanel()
+    end)
+
+    frame.liveUpdate = CreateFrame("Frame", nil, frame)
+    frame.liveUpdate.elapsed = 0
+    frame.liveUpdate:SetScript("OnUpdate", function(_, elapsed)
+        if not ClassForge:IsMeterEnabled() then
+            return
+        end
+
+        local combat = ClassForge.meterState and ClassForge.meterState.combat or nil
+        if not combat or not combat.active then
+            return
+        end
+
+        frame.liveUpdate.elapsed = frame.liveUpdate.elapsed + elapsed
+        if frame.liveUpdate.elapsed >= 0.2 then
+            frame.liveUpdate.elapsed = 0
+            ClassForge:UpdateMeterPanel()
+        end
+    end)
+
     self.meterPanel = frame
     self:ApplyMeterPosition()
+    self:ApplyMeterSize()
     self:UpdateMeterPanel()
 end
 
@@ -724,6 +919,18 @@ function ClassForge:UpdateMeterPanel()
     end
 
     self.meterPanel.title:SetText((self.name or "ClassForge") .. " " .. self:L("meter_tab"))
+    if self.meterPanel.viewButtons then
+        local activeView = self:GetMeterView()
+        for _, button in ipairs(self.meterPanel.viewButtons) do
+            button:SetText(self:L(button.labelKey))
+            button:SetWidth(math.max(72, button:GetTextWidth() + 16))
+            if button.viewKey == activeView then
+                button:Disable()
+            else
+                button:Enable()
+            end
+        end
+    end
     if self.meterPanel.resetButton then
         self.meterPanel.resetButton:SetText(self:L("reset"))
     end
@@ -733,6 +940,13 @@ function ClassForge:UpdateMeterPanel()
     end
     self.meterPanel.hintText:SetText(self:IsMeterLocked() and self:L("locked") or self:L("shift_drag"))
     self.meterPanel.text:SetText(self:BuildMeterText())
+    if self.meterPanel.scrollChild and self.meterPanel.scrollFrame and self.meterPanel.text then
+        self.meterPanel.scrollChild:SetWidth(math.max(320, self.meterPanel:GetWidth() - 38))
+        self.meterPanel.text:SetWidth(math.max(300, self.meterPanel:GetWidth() - 44))
+        local visibleHeight = math.max(20, self.meterPanel.scrollFrame:GetHeight() - 4)
+        local contentHeight = self.meterPanel.text:GetStringHeight() or 0
+        self.meterPanel.scrollChild:SetHeight(math.max(visibleHeight, contentHeight + 8))
+    end
     self.meterPanel:Show()
 end
 

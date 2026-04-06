@@ -2,7 +2,7 @@ ClassForge = ClassForge or {}
 
 ClassForge.name = "ClassForge"
 ClassForge.prefix = "CLASSFORGE"
-ClassForge.version = "3.5.0"
+ClassForge.version = "3.5.1"
 ClassForge.dbVersion = 5
 ClassForge.homepage = "https://github.com/MrKrisSatan/ClassForge"
 ClassForge.releasesPage = "https://github.com/MrKrisSatan/ClassForge/releases"
@@ -36,6 +36,10 @@ ClassForge.defaults = {
             x = 320,
             y = 40,
         },
+        meterSize = {
+            width = 520,
+            height = 180,
+        },
         minimapButton = {
             angle = 225,
             hidden = false,
@@ -43,6 +47,7 @@ ClassForge.defaults = {
         meter = {
             enabled = true,
             locked = false,
+            view = "dps",
             maxRows = 5,
             showDps = true,
             showTopSpell = true,
@@ -188,6 +193,10 @@ ClassForge.translations = {
         profile_saved = "Profile saved.",
         language_updated = "Language updated.",
         meter_box = "Meter box",
+        meter_view_dps = "Highest DPS",
+        meter_view_threat = "Highest Threat",
+        meter_view_healing_done = "Top Healing Done",
+        meter_view_healing_received = "Top Healing Received",
         lock_meter = "Lock meter position",
         reset_meter = "Reset Meter",
         reset_meter_data = "Reset Data",
@@ -196,6 +205,7 @@ ClassForge.translations = {
         meter_show_threat = "Show highest threat on target",
         meter_show_healing = "Show healing leader",
         meter_max_rows = "Max DPS rows",
+        meter_size = "Size",
         meter_export = "Export Meter",
         meter_export_target = "Export target",
         meter_export_channel = "Channel name",
@@ -206,7 +216,7 @@ ClassForge.translations = {
         export_officer = "Officer",
         export_yell = "Yell",
         export_channel = "Channel",
-        meter_hint = "Hold Shift and drag the meter when it is unlocked.",
+        meter_hint = "Hold Shift and drag to move. Drag the bottom-right corner to resize.",
         meter_waiting = "Waiting for combat data...",
         dps_rankings = "DPS Rankings",
         top_spell = "Top Spell",
@@ -299,6 +309,10 @@ ClassForge.translations = {
         profile_saved = "Perfil guardado.",
         language_updated = "Idioma actualizado.",
         meter_box = "Caja del medidor",
+        meter_view_dps = "Mayor DPS",
+        meter_view_threat = "Mayor amenaza",
+        meter_view_healing_done = "Más sanación hecha",
+        meter_view_healing_received = "Más sanación recibida",
         lock_meter = "Bloquear posición del medidor",
         reset_meter = "Restablecer medidor",
         reset_meter_data = "Restablecer datos",
@@ -307,6 +321,7 @@ ClassForge.translations = {
         meter_show_threat = "Mostrar mayor amenaza en el objetivo",
         meter_show_healing = "Mostrar líder de sanación",
         meter_max_rows = "Máx. filas de DPS",
+        meter_size = "Tamaño",
         meter_export = "Exportar medidor",
         meter_export_target = "Destino de exportación",
         meter_export_channel = "Nombre del canal",
@@ -317,7 +332,7 @@ ClassForge.translations = {
         export_officer = "Oficial",
         export_yell = "Gritar",
         export_channel = "Canal",
-        meter_hint = "Mantén Mayús y arrastra el medidor cuando esté desbloqueado.",
+        meter_hint = "Mantén Mayús y arrastra para mover. Arrastra la esquina inferior derecha para cambiar el tamaño.",
         meter_waiting = "Esperando datos de combate...",
         dps_rankings = "Clasificación DPS",
         top_spell = "Mejor hechizo",
@@ -410,6 +425,10 @@ ClassForge.translations = {
         profile_saved = "Профиль сохранен.",
         language_updated = "Язык обновлен.",
         meter_box = "Окно метра",
+        meter_view_dps = "Наивысший DPS",
+        meter_view_threat = "Наивысшая угроза",
+        meter_view_healing_done = "Лучшее исцеление",
+        meter_view_healing_received = "Больше всего получено исцеления",
         lock_meter = "Закрепить положение метра",
         reset_meter = "Сброс метра",
         reset_meter_data = "Сброс данных",
@@ -418,6 +437,7 @@ ClassForge.translations = {
         meter_show_threat = "Показывать лидера угрозы на цели",
         meter_show_healing = "Показывать лидера лечения",
         meter_max_rows = "Макс. строк DPS",
+        meter_size = "Размер",
         meter_export = "Экспорт метра",
         meter_export_target = "Куда экспортировать",
         meter_export_channel = "Имя канала",
@@ -428,7 +448,7 @@ ClassForge.translations = {
         export_officer = "Офицеры",
         export_yell = "Крик",
         export_channel = "Канал",
-        meter_hint = "Удерживайте Shift и перетаскивайте метр, когда он не закреплен.",
+        meter_hint = "Удерживайте Shift и перетаскивайте для перемещения. Тяните нижний правый угол для изменения размера.",
         meter_waiting = "Ожидание данных боя...",
         dps_rankings = "Рейтинг DPS",
         top_spell = "Лучшее заклинание",
@@ -754,6 +774,10 @@ function ClassForge:ACTIVE_TALENT_GROUP_CHANGED()
 end
 
 function ClassForge:PLAYER_REGEN_DISABLED()
+    if not self:IsMeterEnabled() then
+        return
+    end
+
     if self.ResetMeterCombat then
         self:ResetMeterCombat()
         if self.EnsureMeterCombatActive then
@@ -764,9 +788,13 @@ function ClassForge:PLAYER_REGEN_DISABLED()
 end
 
 function ClassForge:PLAYER_REGEN_ENABLED()
+    if not self:IsMeterEnabled() then
+        return
+    end
+
     if self.meterState and self.meterState.combat then
         self.meterState.combat.active = false
-        self.meterState.combat.ended = time()
+        self.meterState.combat.ended = (GetTime and GetTime()) or time()
     end
     if self.UpdateMeterPanel then
         self:UpdateMeterPanel()
@@ -774,6 +802,10 @@ function ClassForge:PLAYER_REGEN_ENABLED()
 end
 
 function ClassForge:COMBAT_LOG_EVENT_UNFILTERED(...)
+    if not self:IsMeterEnabled() then
+        return
+    end
+
     if not self.RecordMeterDamage or not self.RecordMeterHealing then
         return
     end
@@ -837,7 +869,7 @@ function ClassForge:COMBAT_LOG_EVENT_UNFILTERED(...)
     elseif eventType == "DAMAGE_SHIELD" or eventType == "DAMAGE_SPLIT" then
         self:RecordMeterDamage(sourceName, spellLabel, firstPositiveNumber(arg4, arg5, arg6, arg7, arg1, arg3), sourceFlags, sourceGUID)
     elseif eventType == "SPELL_HEAL" or eventType == "SPELL_PERIODIC_HEAL" then
-        self:RecordMeterHealing(sourceName, firstPositiveNumber(arg4, arg5, arg6, arg7, arg1, arg3), sourceFlags, sourceGUID)
+        self:RecordMeterHealing(sourceName, firstPositiveNumber(arg4, arg5, arg6, arg7, arg1, arg3), sourceFlags, sourceGUID, destName)
     elseif eventType == "SPELL_BUILDING_DAMAGE" then
         self:RecordMeterDamage(sourceName, spellLabel, firstPositiveNumber(arg4, arg5, arg6, arg7, arg1, arg3), sourceFlags, sourceGUID)
     end
@@ -848,6 +880,10 @@ function ClassForge:COMBAT_LOG_EVENT_UNFILTERED(...)
 end
 
 function ClassForge:UNIT_COMBAT(unit, action, descriptor, amount, damageType)
+    if not self:IsMeterEnabled() then
+        return
+    end
+
     if not unit or not self.RecordMeterDamage or not self.RecordMeterHealing then
         return
     end
