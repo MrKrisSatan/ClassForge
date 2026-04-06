@@ -430,6 +430,17 @@ function ClassForge:IsMeterLocked()
     return self.defaults.profile.meter.locked and true or false
 end
 
+function ClassForge:IsMeterPersistent()
+    local profile = self:GetProfile()
+    local meter = profile and profile.meter or nil
+
+    if meter and meter.persistent ~= nil then
+        return meter.persistent and true or false
+    end
+
+    return self.defaults.profile.meter.persistent and true or false
+end
+
 function ClassForge:GetMeterView()
     local profile = self:GetProfile()
     local meter = profile and profile.meter or nil
@@ -491,6 +502,36 @@ function ClassForge:GetMeterExportChannel()
     end
 
     return channel
+end
+
+function ClassForge:IsMeterPetEnabled()
+    local profile = self:GetProfile()
+    local meter = profile and profile.meter or nil
+
+    if meter and meter.includePets ~= nil then
+        return meter.includePets and true or false
+    end
+
+    return self.defaults.profile.meter.includePets and true or false
+end
+
+function ClassForge:IsMeterDebugEnabled()
+    local profile = self:GetProfile()
+    local meter = profile and profile.meter or nil
+
+    if meter and meter.debug ~= nil then
+        return meter.debug and true or false
+    end
+
+    return self.defaults.profile.meter.debug and true or false
+end
+
+function ClassForge:MeterDebug(message)
+    if not self:IsMeterDebugEnabled() then
+        return
+    end
+
+    self:Print("[Meter] " .. tostring(message or ""))
 end
 
 function ClassForge:GetCacheEntryCount()

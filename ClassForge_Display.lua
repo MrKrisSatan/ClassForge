@@ -151,6 +151,12 @@ function ClassForge:SetMeterView(view)
     self:UpdateMeterPanel()
 end
 
+function ClassForge:SetMeterPersistent(enabled)
+    ClassForgeDB.profile.meter = ClassForgeDB.profile.meter or {}
+    ClassForgeDB.profile.meter.persistent = enabled and true or false
+    self:UpdateMeterPanel()
+end
+
 function ClassForge:SetMeterLocked(locked)
     ClassForgeDB.profile.meter = ClassForgeDB.profile.meter or {}
     ClassForgeDB.profile.meter.locked = locked and true or false
@@ -186,6 +192,19 @@ end
 function ClassForge:SetMeterExportChannel(channelName)
     ClassForgeDB.profile.meter = ClassForgeDB.profile.meter or {}
     ClassForgeDB.profile.meter.exportChannel = self:Trim(channelName) ~= "" and self:Trim(channelName) or self.defaults.profile.meter.exportChannel
+end
+
+function ClassForge:SetMeterIncludePets(enabled)
+    ClassForgeDB.profile.meter = ClassForgeDB.profile.meter or {}
+    ClassForgeDB.profile.meter.includePets = enabled and true or false
+    self:UpdateMeterPanel()
+end
+
+function ClassForge:SetMeterDebug(enabled)
+    ClassForgeDB.profile.meter = ClassForgeDB.profile.meter or {}
+    ClassForgeDB.profile.meter.debug = enabled and true or false
+    self:Print(self:L(enabled and "meter_debug_on" or "meter_debug_off"))
+    self:UpdateMeterPanel()
 end
 
 function ClassForge:IsTrackedGroupPlayer(name)
@@ -229,11 +248,62 @@ function ClassForge:IsTrackedCombatSource(sourceFlags, sourceName, sourceGUID)
         return true
     end
 
+    local trimmedSourceName = self:Trim(sourceName)
+    local playerName = UnitName("player")
+    if trimmedSourceName ~= "" then
+        if trimmedSourceName == "You" or trimmedSourceName == self:L("you") then
+            return true
+        end
+
+        if playerName and self:NormalizePlayerName(trimmedSourceName) == self:NormalizePlayerName(playerName) then
+            return true
+        end
+    end
+
+    if self:IsMeterPetEnabled() then
+        local function unitMatches(unit)
+            if not UnitExists(unit) then
+                return false
+            end
+
+            if sourceGUID and UnitGUID and UnitGUID(unit) == sourceGUID then
+                return true
+            end
+
+            if trimmedSourceName ~= "" and UnitName(unit) and self:NormalizePlayerName(UnitName(unit)) == self:NormalizePlayerName(trimmedSourceName) then
+                return true
+            end
+
+            return false
+        end
+
+        if unitMatches("pet") then
+            return true
+        end
+
+        for index = 1, MAX_PARTY_MEMBERS do
+            if unitMatches("partypet" .. index) then
+                return true
+            end
+        end
+
+        for index = 1, MAX_RAID_MEMBERS do
+            if unitMatches("raidpet" .. index) then
+                return true
+            end
+        end
+    end
+
     return self:IsTrackedGroupPlayer(sourceName)
 end
 
 function ClassForge:ResetMeterCombat()
     self.meterState = self.meterState or {}
+    self.meterState.breakdown = self.meterState.breakdown or {
+        damageSpells = {},
+        healingSpells = {},
+    }
+
     self.meterState.combat = {
         active = false,
         started = 0,
@@ -241,11 +311,19 @@ function ClassForge:ResetMeterCombat()
         damage = {},
         healing = {},
         healingReceived = {},
+        damageSpells = {},
+        healingSpells = {},
     }
+    self.pendingSpellDamage = {}
     self:UpdateMeterPanel()
 end
 
 function ClassForge:ResetMeterData()
+    self.meterState = self.meterState or {}
+    self.meterState.breakdown = {
+        damageSpells = {},
+        healingSpells = {},
+    }
     self:ResetMeterCombat()
 end
 
@@ -255,6 +333,10 @@ function ClassForge:EnsureMeterCombatActive()
     end
 
     self.meterState = self.meterState or {}
+    self.meterState.breakdown = self.meterState.breakdown or {
+        damageSpells = {},
+        healingSpells = {},
+    }
     self.meterState.combat = self.meterState.combat or {
         active = false,
         started = 0,
@@ -262,10 +344,17 @@ function ClassForge:EnsureMeterCombatActive()
         damage = {},
         healing = {},
         healingReceived = {},
+        damageSpells = {},
+        healingSpells = {},
     }
 
     local combat = self.meterState.combat
+    local breakdown = self.meterState.breakdown
     combat.healingReceived = combat.healingReceived or {}
+    combat.damageSpells = combat.damageSpells or {}
+    combat.healingSpells = combat.healingSpells or {}
+    breakdown.damageSpells = breakdown.damageSpells or {}
+    breakdown.healingSpells = breakdown.healingSpells or {}
     if not combat.started or combat.started == 0 then
         combat.started = (GetTime and GetTime()) or time()
     end
@@ -305,6 +394,35 @@ function ClassForge:GetMeterEntry(container, name)
     return container[normalized]
 end
 
+function ClassForge:GetMeterSpellAmount(spellEntry)
+    if type(spellEntry) == "table" then
+        return tonumber(spellEntry.amount) or 0
+    end
+
+    return tonumber(spellEntry) or 0
+end
+
+function ClassForge:GetOrCreateMeterSpellEntry(container, spellKey)
+    local current = container[spellKey]
+    if type(current) == "table" then
+        current.amount = tonumber(current.amount) or 0
+        current.totalhits = tonumber(current.totalhits) or 0
+        return current
+    end
+
+    local entry = {
+        amount = tonumber(current) or 0,
+        totalhits = 0,
+        hit = 0,
+        hitamount = 0,
+        critical = 0,
+        criticalamount = 0,
+        overkill = 0,
+    }
+    container[spellKey] = entry
+    return entry
+end
+
 function ClassForge:SeedMeterParticipants()
     if not self:IsMeterEnabled() then
         return
@@ -339,7 +457,7 @@ function ClassForge:SeedMeterParticipants()
     end
 end
 
-function ClassForge:RecordMeterDamage(sourceName, spellName, amount, sourceFlags, sourceGUID)
+function ClassForge:RecordMeterDamage(sourceName, spellName, amount, sourceFlags, sourceGUID, details)
     if not self:IsMeterEnabled() then
         return
     end
@@ -349,6 +467,11 @@ function ClassForge:RecordMeterDamage(sourceName, spellName, amount, sourceFlags
     end
 
     local combat = self:EnsureMeterCombatActive()
+    if not combat then
+        return
+    end
+    combat.damage = combat.damage or {}
+    combat.damageSpells = combat.damageSpells or {}
     local entry = self:GetMeterEntry(combat.damage, sourceName or UnitName("player"))
     if not entry then
         return
@@ -356,10 +479,79 @@ function ClassForge:RecordMeterDamage(sourceName, spellName, amount, sourceFlags
 
     local spellKey = self:Trim(spellName) ~= "" and spellName or "Melee"
     entry.total = (entry.total or 0) + amount
-    entry.spells[spellKey] = (entry.spells[spellKey] or 0) + amount
+    local entrySpell = self:GetOrCreateMeterSpellEntry(entry.spells, spellKey)
+    local combatSpell = self:GetOrCreateMeterSpellEntry(combat.damageSpells, spellKey)
+    local breakdownSpell = self:GetOrCreateMeterSpellEntry(self.meterState.breakdown.damageSpells, spellKey)
+    local spellID = details and details.spellID or nil
+    local school = details and details.school or nil
+    local overkill = details and tonumber(details.overkill) or 0
+    local missed = details and details.missed or nil
+    local critical = details and details.critical or nil
+    local glancing = details and details.glancing or nil
+    local crushing = details and details.crushing or nil
+
+    local function applySpellStats(spellEntry)
+        spellEntry.amount = (spellEntry.amount or 0) + amount
+        spellEntry.totalhits = (spellEntry.totalhits or 0) + 1
+        if spellID and not spellEntry.id then
+            spellEntry.id = spellID
+        end
+        if school and not spellEntry.school then
+            spellEntry.school = school
+        end
+        if overkill and overkill > 0 then
+            spellEntry.overkill = (spellEntry.overkill or 0) + overkill
+        end
+        if critical then
+            spellEntry.critical = (spellEntry.critical or 0) + 1
+            spellEntry.criticalamount = (spellEntry.criticalamount or 0) + amount
+            spellEntry.criticalmax = not spellEntry.criticalmax and amount or math.max(spellEntry.criticalmax, amount)
+            spellEntry.criticalmin = not spellEntry.criticalmin and amount or math.min(spellEntry.criticalmin, amount)
+        elseif glancing then
+            spellEntry.glancing = (spellEntry.glancing or 0) + 1
+        elseif crushing then
+            spellEntry.crushing = (spellEntry.crushing or 0) + 1
+        elseif missed then
+            spellEntry[missed] = (spellEntry[missed] or 0) + 1
+        else
+            spellEntry.hit = (spellEntry.hit or 0) + 1
+            spellEntry.hitamount = (spellEntry.hitamount or 0) + amount
+            spellEntry.hitmax = not spellEntry.hitmax and amount or math.max(spellEntry.hitmax, amount)
+            spellEntry.hitmin = not spellEntry.hitmin and amount or math.min(spellEntry.hitmin, amount)
+        end
+        spellEntry.max = not spellEntry.max and amount or math.max(spellEntry.max, amount)
+        spellEntry.min = not spellEntry.min and amount or math.min(spellEntry.min, amount)
+    end
+
+    applySpellStats(entrySpell)
+    applySpellStats(combatSpell)
+    applySpellStats(breakdownSpell)
+
+    local pending = self.pendingSpellDamage
+    local playerGUID = UnitGUID and UnitGUID("player") or nil
+    local playerName = UnitName("player")
+    if type(pending) == "table" and spellKey ~= "Melee" then
+        local sameSource = false
+        if playerGUID and sourceGUID and sourceGUID == playerGUID then
+            sameSource = true
+        elseif playerName and sourceName and self:NormalizePlayerName(sourceName) == self:NormalizePlayerName(playerName) then
+            sameSource = true
+        end
+
+        if sameSource then
+            local normalizedSpell = self:NormalizePlayerName(spellKey)
+            for index = #pending, 1, -1 do
+                local item = pending[index]
+                if item and self:NormalizePlayerName(item.spell) == normalizedSpell then
+                    table.remove(pending, index)
+                    break
+                end
+            end
+        end
+    end
 end
 
-function ClassForge:RecordMeterHealing(sourceName, amount, sourceFlags, sourceGUID, destName)
+function ClassForge:RecordMeterHealing(sourceName, amount, sourceFlags, sourceGUID, destName, spellName, details)
     if not self:IsMeterEnabled() then
         return
     end
@@ -369,12 +561,47 @@ function ClassForge:RecordMeterHealing(sourceName, amount, sourceFlags, sourceGU
     end
 
     local combat = self:EnsureMeterCombatActive()
+    if not combat then
+        return
+    end
+    combat.healing = combat.healing or {}
+    combat.healingReceived = combat.healingReceived or {}
+    combat.healingSpells = combat.healingSpells or {}
     local entry = self:GetMeterEntry(combat.healing, sourceName or UnitName("player"))
     if not entry then
         return
     end
 
     entry.total = (entry.total or 0) + amount
+    local spellKey = self:Trim(spellName) ~= "" and spellName or "Heal"
+    local combatSpell = self:GetOrCreateMeterSpellEntry(combat.healingSpells, spellKey)
+    local breakdownSpell = self:GetOrCreateMeterSpellEntry(self.meterState.breakdown.healingSpells, spellKey)
+    local spellID = details and details.spellID or nil
+    local school = details and details.school or nil
+    local critical = details and details.critical or nil
+
+    local function applyHealingStats(spellEntry)
+        spellEntry.amount = (spellEntry.amount or 0) + amount
+        spellEntry.totalhits = (spellEntry.totalhits or 0) + 1
+        if spellID and not spellEntry.id then
+            spellEntry.id = spellID
+        end
+        if school and not spellEntry.school then
+            spellEntry.school = school
+        end
+        if critical then
+            spellEntry.critical = (spellEntry.critical or 0) + 1
+            spellEntry.criticalamount = (spellEntry.criticalamount or 0) + amount
+        else
+            spellEntry.hit = (spellEntry.hit or 0) + 1
+            spellEntry.hitamount = (spellEntry.hitamount or 0) + amount
+        end
+        spellEntry.max = not spellEntry.max and amount or math.max(spellEntry.max, amount)
+        spellEntry.min = not spellEntry.min and amount or math.min(spellEntry.min, amount)
+    end
+
+    applyHealingStats(combatSpell)
+    applyHealingStats(breakdownSpell)
 
     if destName then
         local receivedEntry = self:GetMeterEntry(combat.healingReceived, destName)
@@ -382,6 +609,47 @@ function ClassForge:RecordMeterHealing(sourceName, amount, sourceFlags, sourceGU
             receivedEntry.total = (receivedEntry.total or 0) + amount
         end
     end
+end
+
+function ClassForge:RecordMeterMiss(sourceName, spellName, sourceFlags, sourceGUID, details)
+    if not self:IsMeterEnabled() then
+        return
+    end
+
+    if (not sourceName and not sourceGUID) or not self:IsTrackedCombatSource(sourceFlags, sourceName, sourceGUID) then
+        return
+    end
+
+    local combat = self:EnsureMeterCombatActive()
+    if not combat then
+        return
+    end
+
+    combat.damage = combat.damage or {}
+    combat.damageSpells = combat.damageSpells or {}
+    local entry = self:GetMeterEntry(combat.damage, sourceName or UnitName("player"))
+    if not entry then
+        return
+    end
+
+    local spellKey = self:Trim(spellName) ~= "" and spellName or "Melee"
+    local missed = details and details.missed or "MISS"
+    local spellID = details and details.spellID or nil
+    local school = details and details.school or nil
+    local function applyMiss(spellEntry)
+        spellEntry.totalhits = (spellEntry.totalhits or 0) + 1
+        spellEntry[missed] = (spellEntry[missed] or 0) + 1
+        if spellID and not spellEntry.id then
+            spellEntry.id = spellID
+        end
+        if school and not spellEntry.school then
+            spellEntry.school = school
+        end
+    end
+
+    applyMiss(self:GetOrCreateMeterSpellEntry(entry.spells, spellKey))
+    applyMiss(self:GetOrCreateMeterSpellEntry(combat.damageSpells, spellKey))
+    applyMiss(self:GetOrCreateMeterSpellEntry(self.meterState.breakdown.damageSpells, spellKey))
 end
 
 function ClassForge:GetMeterIdentityText(name)
@@ -417,6 +685,7 @@ function ClassForge:GetMeterTopSpellText()
 
     local bestSpell, bestAmount
     for spellName, amount in pairs(entry.spells) do
+        amount = self:GetMeterSpellAmount(amount)
         if not bestAmount or amount > bestAmount then
             bestSpell = spellName
             bestAmount = amount
@@ -440,6 +709,7 @@ function ClassForge:GetMeterTopSpellForName(name)
 
     local bestSpell, bestAmount
     for spellName, amount in pairs(entry.spells) do
+        amount = self:GetMeterSpellAmount(amount)
         if not bestAmount or amount > bestAmount then
             bestSpell = spellName
             bestAmount = amount
@@ -777,6 +1047,441 @@ function ClassForge:BuildMeterExportLines()
     return lines
 end
 
+function ClassForge:GetSpellBreakdownData(mode)
+    local breakdown = self.meterState and self.meterState.breakdown or nil
+    local source = nil
+    local total = 0
+    local rows = {}
+
+    if breakdown then
+        if mode == "healing" then
+            source = breakdown.healingSpells
+        else
+            source = breakdown.damageSpells
+        end
+    end
+
+    for spellName, amount in pairs(source or {}) do
+        local numeric = self:GetMeterSpellAmount(amount)
+        if numeric > 0 then
+            total = total + numeric
+            rows[#rows + 1] = {
+                spell = spellName,
+                amount = numeric,
+                hits = type(amount) == "table" and (tonumber(amount.totalhits) or 0) or 0,
+                crits = type(amount) == "table" and (tonumber(amount.critical) or 0) or 0,
+                min = type(amount) == "table" and tonumber(amount.min) or nil,
+                max = type(amount) == "table" and tonumber(amount.max) or nil,
+                overkill = type(amount) == "table" and (tonumber(amount.overkill) or 0) or 0,
+            }
+        end
+    end
+
+    table.sort(rows, function(left, right)
+        if left.amount == right.amount then
+            return string.lower(left.spell or "") < string.lower(right.spell or "")
+        end
+
+        return left.amount > right.amount
+    end)
+
+    return rows, total
+end
+
+function ClassForge:GetBreakdownPalette(index)
+    local palette = {
+        "ff6b6b",
+        "ffd166",
+        "7bd389",
+        "4ecdc4",
+        "5dade2",
+        "a29bfe",
+        "f78fb3",
+        "95a5a6",
+    }
+
+    return palette[((index - 1) % #palette) + 1]
+end
+
+function ClassForge:GetBreakdownAngle(dx, dy)
+    local angle = nil
+    if math.atan2 then
+        angle = math.deg(math.atan2(dy, dx))
+    else
+        if dx == 0 then
+            angle = (dy >= 0) and 90 or 270
+        else
+            angle = math.deg(math.atan(dy / dx))
+            if dx < 0 then
+                angle = angle + 180
+            elseif dy < 0 then
+                angle = angle + 360
+            end
+        end
+    end
+
+    if angle < 0 then
+        angle = angle + 360
+    end
+
+    return angle
+end
+
+function ClassForge:GetBreakdownSegmentAtAngle(frame, angle)
+    local segments = frame and frame.chartSegments or nil
+    if not segments then
+        return nil
+    end
+
+    for _, segment in ipairs(segments) do
+        if angle >= segment.startAngle and angle < segment.endAngle then
+            return segment
+        end
+    end
+
+    return segments[#segments]
+end
+
+function ClassForge:UpdateSpellBreakdownTooltip(frame)
+    if not frame or not frame:IsShown() or not frame.chartSegments or #frame.chartSegments == 0 then
+        GameTooltip:Hide()
+        return
+    end
+
+    local cursorX, cursorY = GetCursorPosition()
+    local scale = frame.chartBackdrop:GetEffectiveScale() or 1
+    cursorX = cursorX / scale
+    cursorY = cursorY / scale
+
+    local left = frame.chartBackdrop:GetLeft()
+    local bottom = frame.chartBackdrop:GetBottom()
+    local width = frame.chartBackdrop:GetWidth()
+    local height = frame.chartBackdrop:GetHeight()
+    if not left or not bottom or not width or not height then
+        GameTooltip:Hide()
+        return
+    end
+
+    local centerX = left + (width / 2)
+    local centerY = bottom + (height / 2)
+    local dx = cursorX - centerX
+    local dy = cursorY - centerY
+    local distance = math.sqrt((dx * dx) + (dy * dy))
+    local radius = math.min(width, height) / 2
+    if distance > radius then
+        GameTooltip:Hide()
+        return
+    end
+
+    local angle = self:GetBreakdownAngle(dx, dy)
+    local segment = self:GetBreakdownSegmentAtAngle(frame, angle)
+    if not segment then
+        GameTooltip:Hide()
+        return
+    end
+
+    GameTooltip:SetOwner(frame.chartBackdrop, "ANCHOR_RIGHT")
+    GameTooltip:ClearLines()
+    GameTooltip:AddLine(segment.spell or self:L("unknown"))
+    GameTooltip:AddDoubleLine(self:L("meter_contribution"), string.format("%d (%.1f%%)", segment.amount or 0, segment.percent or 0), 1, 1, 1, 1, 1, 1)
+    if segment.hits and segment.hits > 0 then
+        GameTooltip:AddDoubleLine(self:L("hits"), tostring(segment.hits), 0.85, 0.85, 0.85, 1, 1, 1)
+    end
+    if segment.crits and segment.crits > 0 then
+        GameTooltip:AddDoubleLine(self:L("crits"), tostring(segment.crits), 0.85, 0.85, 0.85, 1, 1, 1)
+    end
+    if segment.min then
+        GameTooltip:AddDoubleLine(self:L("min"), tostring(segment.min), 0.85, 0.85, 0.85, 1, 1, 1)
+    end
+    if segment.max then
+        GameTooltip:AddDoubleLine(self:L("max"), tostring(segment.max), 0.85, 0.85, 0.85, 1, 1, 1)
+    end
+    if frame.selectedSpell and frame.selectedSpell == segment.spell then
+        GameTooltip:AddLine(self:L("meter_filter_clear"), 0.6, 0.85, 1)
+    else
+        GameTooltip:AddLine(self:L("meter_click_segment"), 0.6, 0.85, 1)
+    end
+    GameTooltip:Show()
+end
+
+function ClassForge:CreateSpellBreakdownWindow()
+    if self.spellBreakdownFrame then
+        return
+    end
+
+    local frame = CreateFrame("Frame", "ClassForgeSpellBreakdownFrame", UIParent)
+    frame:SetWidth(460)
+    frame:SetHeight(300)
+    frame:SetPoint("CENTER", UIParent, "CENTER", 0, 40)
+    frame:SetFrameStrata("DIALOG")
+    frame:SetFrameLevel(20)
+    frame:SetClampedToScreen(true)
+    frame:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true,
+        tileSize = 16,
+        edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 },
+    })
+    frame:SetBackdropColor(0, 0, 0, 0.92)
+    frame:EnableMouse(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetMovable(true)
+    frame:SetScript("OnDragStart", function(selfFrame)
+        if IsShiftKeyDown() then
+            selfFrame:StartMoving()
+        end
+    end)
+    frame:SetScript("OnDragStop", function(selfFrame)
+        selfFrame:StopMovingOrSizing()
+    end)
+    frame:Hide()
+    frame.mode = "damage"
+
+    frame.title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    frame.title:SetPoint("TOPLEFT", 12, -10)
+
+    frame.closeButton = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    frame.closeButton:SetPoint("TOPRIGHT", -4, -4)
+
+    frame.damageButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    frame.damageButton:SetWidth(90)
+    frame.damageButton:SetHeight(20)
+    frame.damageButton:SetPoint("TOPLEFT", frame.title, "BOTTOMLEFT", 0, -6)
+    frame.damageButton:SetScript("OnClick", function()
+        frame.mode = "damage"
+        ClassForge:UpdateSpellBreakdownWindow()
+    end)
+
+    frame.healingButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    frame.healingButton:SetWidth(90)
+    frame.healingButton:SetHeight(20)
+    frame.healingButton:SetPoint("LEFT", frame.damageButton, "RIGHT", 6, 0)
+    frame.healingButton:SetScript("OnClick", function()
+        frame.mode = "healing"
+        ClassForge:UpdateSpellBreakdownWindow()
+    end)
+
+    frame.chartBackdrop = CreateFrame("Frame", nil, frame)
+    frame.chartBackdrop:SetWidth(180)
+    frame.chartBackdrop:SetHeight(180)
+    frame.chartBackdrop:SetPoint("TOPLEFT", frame.damageButton, "BOTTOMLEFT", 0, -16)
+    frame.chartBackdrop:EnableMouse(true)
+    frame.chartBackdrop:SetScript("OnEnter", function()
+        ClassForge:UpdateSpellBreakdownTooltip(frame)
+    end)
+    frame.chartBackdrop:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    frame.chartBackdrop:SetScript("OnUpdate", function()
+        ClassForge:UpdateSpellBreakdownTooltip(frame)
+    end)
+    frame.chartBackdrop:SetScript("OnMouseDown", function()
+        local cursorX, cursorY = GetCursorPosition()
+        local scale = frame.chartBackdrop:GetEffectiveScale() or 1
+        cursorX = cursorX / scale
+        cursorY = cursorY / scale
+        local left = frame.chartBackdrop:GetLeft()
+        local bottom = frame.chartBackdrop:GetBottom()
+        local width = frame.chartBackdrop:GetWidth()
+        local height = frame.chartBackdrop:GetHeight()
+        if not left or not bottom or not width or not height then
+            return
+        end
+
+        local centerX = left + (width / 2)
+        local centerY = bottom + (height / 2)
+        local angle = ClassForge:GetBreakdownAngle(cursorX - centerX, cursorY - centerY)
+        local segment = ClassForge:GetBreakdownSegmentAtAngle(frame, angle)
+        if not segment then
+            return
+        end
+
+        if frame.selectedSpell == segment.spell then
+            frame.selectedSpell = nil
+        else
+            frame.selectedSpell = segment.spell
+        end
+        ClassForge:UpdateSpellBreakdownWindow()
+    end)
+
+    frame.chartRing = frame.chartBackdrop:CreateTexture(nil, "BACKGROUND")
+    frame.chartRing:SetTexture("Interface\\Buttons\\WHITE8X8")
+    frame.chartRing:SetVertexColor(0.08, 0.08, 0.08, 0.9)
+    frame.chartRing:SetAllPoints(frame.chartBackdrop)
+
+    frame.chartPixels = {}
+    for index = 1, 2500 do
+        local pixel = frame.chartBackdrop:CreateTexture(nil, "ARTWORK")
+        pixel:SetTexture("Interface\\Buttons\\WHITE8X8")
+        pixel:SetWidth(4)
+        pixel:SetHeight(4)
+        pixel:Hide()
+        frame.chartPixels[#frame.chartPixels + 1] = pixel
+    end
+    frame.chartSegments = {}
+
+    frame.totalText = frame.chartBackdrop:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    frame.totalText:SetPoint("CENTER", frame.chartBackdrop, "CENTER", 0, 0)
+    frame.totalText:SetWidth(120)
+    frame.totalText:SetJustifyH("CENTER")
+
+    frame.listScroll = CreateFrame("ScrollFrame", "ClassForgeSpellBreakdownScroll", frame, "UIPanelScrollFrameTemplate")
+    frame.listScroll:SetPoint("TOPLEFT", frame.chartBackdrop, "TOPRIGHT", 18, 0)
+    frame.listScroll:SetPoint("BOTTOMRIGHT", -28, 14)
+
+    frame.listContent = CreateFrame("Frame", nil, frame.listScroll)
+    frame.listContent:SetWidth(220)
+    frame.listContent:SetHeight(220)
+    frame.listScroll:SetScrollChild(frame.listContent)
+
+    frame.listText = frame.listContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    frame.listText:SetPoint("TOPLEFT", 0, 0)
+    frame.listText:SetWidth(210)
+    frame.listText:SetJustifyH("LEFT")
+    frame.listText:SetJustifyV("TOP")
+
+    self.spellBreakdownFrame = frame
+end
+
+function ClassForge:ToggleSpellBreakdownWindow()
+    self:CreateSpellBreakdownWindow()
+    if not self.spellBreakdownFrame then
+        return
+    end
+
+    if self.spellBreakdownFrame:IsShown() then
+        self.spellBreakdownFrame:Hide()
+    else
+        self.spellBreakdownFrame:Show()
+        self:UpdateSpellBreakdownWindow()
+    end
+end
+
+function ClassForge:UpdateSpellBreakdownWindow()
+    local frame = self.spellBreakdownFrame
+    if not frame or not frame:IsShown() then
+        return
+    end
+
+    local mode = frame.mode or "damage"
+    local spells, total = self:GetSpellBreakdownData(mode)
+    frame.title:SetText(self:L("meter_breakdown"))
+    frame.damageButton:SetText(self:L("meter_damage_spells"))
+    frame.healingButton:SetText(self:L("meter_healing_spells"))
+    frame.damageButton:SetEnabled(mode ~= "damage")
+    frame.healingButton:SetEnabled(mode ~= "healing")
+    frame.totalText:SetText(string.format("%s\n%d", self:L(mode == "healing" and "meter_healing_spells" or "meter_damage_spells"), total or 0))
+
+    local lines = {}
+    frame.chartSegments = {}
+    if not spells or #spells == 0 or total <= 0 then
+        lines[#lines + 1] = self:L("meter_no_spells")
+        for _, pixel in ipairs(frame.chartPixels) do
+            pixel:Hide()
+        end
+        GameTooltip:Hide()
+    else
+        local selectedSpell = frame.selectedSpell
+        if selectedSpell and selectedSpell ~= "" then
+            local filtered = {}
+            for _, entry in ipairs(spells) do
+                if entry.spell == selectedSpell then
+                    filtered[#filtered + 1] = entry
+                    break
+                end
+            end
+            if #filtered > 0 then
+                lines[#lines + 1] = "|cff80d0ff" .. selectedSpell .. "|r"
+                lines[#lines + 1] = "|cff808080" .. self:L("meter_filter_clear") .. "|r"
+                lines[#lines + 1] = " "
+            else
+                frame.selectedSpell = nil
+            end
+        end
+
+        local currentAngle = 0
+        for index, entry in ipairs(spells) do
+            local percent = (entry.amount / total) * 100
+            local colorHex = self:GetBreakdownPalette(index)
+            local stats = {}
+            if entry.hits and entry.hits > 0 then
+                stats[#stats + 1] = string.format("hits %d", entry.hits)
+            end
+            if entry.crits and entry.crits > 0 then
+                stats[#stats + 1] = string.format("crit %d", entry.crits)
+            end
+            if entry.min then
+                stats[#stats + 1] = string.format("min %d", entry.min)
+            end
+            if entry.max then
+                stats[#stats + 1] = string.format("max %d", entry.max)
+            end
+            if entry.overkill and entry.overkill > 0 then
+                stats[#stats + 1] = string.format("overkill %d", entry.overkill)
+            end
+
+            local statText = #stats > 0 and (" |cff808080-|r " .. table.concat(stats, " |cff808080/|r ")) or ""
+            if not frame.selectedSpell or frame.selectedSpell == entry.spell then
+                lines[#lines + 1] = string.format("|cff%s%s|r |cff808080-|r %d |cff808080-|r %.1f%%%s", colorHex, entry.spell, entry.amount, percent, statText)
+            end
+
+            local startAngle = currentAngle
+            local spanAngle = (entry.amount / total) * 360
+            local endAngle = startAngle + spanAngle
+            frame.chartSegments[#frame.chartSegments + 1] = {
+                spell = entry.spell,
+                amount = entry.amount,
+                percent = percent,
+                hits = entry.hits,
+                crits = entry.crits,
+                min = entry.min,
+                max = entry.max,
+                colorHex = colorHex,
+                startAngle = startAngle,
+                endAngle = endAngle,
+            }
+            currentAngle = endAngle
+        end
+
+        local radius = math.floor((math.min(frame.chartBackdrop:GetWidth(), frame.chartBackdrop:GetHeight()) / 2) - 2)
+        local step = 4
+        local usedPixels = 0
+        for x = -radius, radius, step do
+            for y = -radius, radius, step do
+                if ((x * x) + (y * y)) <= (radius * radius) then
+                    usedPixels = usedPixels + 1
+                    local pixel = frame.chartPixels[usedPixels]
+                    if not pixel then
+                        break
+                    end
+
+                    local angle = self:GetBreakdownAngle(x, y)
+                    local segment = self:GetBreakdownSegmentAtAngle(frame, angle)
+                    if segment then
+                        local colorHex = segment.colorHex or "808080"
+                        local red, green, blue = self:HexToRGB(colorHex)
+                        pixel:ClearAllPoints()
+                        pixel:SetPoint("CENTER", frame.chartBackdrop, "CENTER", x, y)
+                        pixel:SetVertexColor(red, green, blue)
+                        pixel:Show()
+                    else
+                        pixel:Hide()
+                    end
+                end
+            end
+        end
+
+        for pixelIndex = usedPixels + 1, #frame.chartPixels do
+            frame.chartPixels[pixelIndex]:Hide()
+        end
+    end
+
+    frame.listText:SetText(table.concat(lines, "\n"))
+    frame.listContent:SetHeight(math.max(220, frame.listText:GetStringHeight() + 8))
+end
+
 function ClassForge:ExportMeterToChat()
     if not SendChatMessage then
         return
@@ -929,8 +1634,28 @@ function ClassForge:CreateMeterPanel()
     end)
     setButtonTooltip(frame.exportButton, self:L("meter_export"))
 
+    frame.breakdownButton = CreateFrame("Button", nil, frame)
+    frame.breakdownButton:SetWidth(20)
+    frame.breakdownButton:SetHeight(20)
+    frame.breakdownButton:SetPoint("RIGHT", frame.exportButton, "LEFT", -6, 0)
+    applyIcon(frame.breakdownButton, "Interface\\Icons\\INV_Misc_Note_05")
+    frame.breakdownButton:SetScript("OnClick", function()
+        ClassForge:ToggleSpellBreakdownWindow()
+    end)
+    setButtonTooltip(frame.breakdownButton, self:L("meter_breakdown"))
+
+    frame.modeButton = CreateFrame("Button", nil, frame)
+    frame.modeButton:SetWidth(20)
+    frame.modeButton:SetHeight(20)
+    frame.modeButton:SetPoint("RIGHT", frame.breakdownButton, "LEFT", -6, 0)
+    applyIcon(frame.modeButton, self:IsMeterPersistent() and "Interface\\Icons\\INV_Misc_PocketWatch_01" or "Interface\\Icons\\Ability_Rogue_Sprint")
+    frame.modeButton:SetScript("OnClick", function()
+        ClassForge:SetMeterPersistent(not ClassForge:IsMeterPersistent())
+    end)
+    setButtonTooltip(frame.modeButton, self:L("meter_mode_toggle"))
+
     frame.hintText = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    frame.hintText:SetPoint("RIGHT", frame.exportButton, "LEFT", -8, 0)
+    frame.hintText:SetPoint("RIGHT", frame.modeButton, "LEFT", -8, 0)
     frame.hintText:SetText(self:IsMeterLocked() and self:L("locked") or self:L("shift_drag"))
 
     frame.scrollFrame = CreateFrame("ScrollFrame", "ClassForgeMeterScrollFrame", frame, "UIPanelScrollFrameTemplate")
@@ -982,6 +1707,9 @@ function ClassForge:CreateMeterPanel()
             ClassForge.meterTicker.elapsed = ClassForge.meterTicker.elapsed + elapsed
             if ClassForge.meterTicker.elapsed >= 0.1 then
                 ClassForge.meterTicker.elapsed = 0
+                if ClassForge.ProcessPendingSpellDamage then
+                    ClassForge:ProcessPendingSpellDamage("target")
+                end
                 ClassForge:UpdateMeterPanel()
             end
         end)
@@ -1018,6 +1746,13 @@ function ClassForge:UpdateMeterPanel()
     if self.meterPanel.exportButton then
         self.meterPanel.exportButton.tooltipText = self:L("meter_export")
     end
+    if self.meterPanel.breakdownButton then
+        self.meterPanel.breakdownButton.tooltipText = self:L("meter_breakdown")
+    end
+    if self.meterPanel.modeButton then
+        self.meterPanel.modeButton.tooltipText = self:L("meter_mode_toggle") .. ": " .. self:L(self:IsMeterPersistent() and "meter_mode_session" or "meter_mode_segment")
+        self.meterPanel.modeButton.icon:SetTexture(self:IsMeterPersistent() and "Interface\\Icons\\INV_Misc_PocketWatch_01" or "Interface\\Icons\\Ability_Rogue_Sprint")
+    end
     if self.meterPanel.resetButton then
         self.meterPanel.resetButton.tooltipText = self:L("reset_meter_data")
     end
@@ -1031,6 +1766,7 @@ function ClassForge:UpdateMeterPanel()
         self.meterPanel.scrollChild:SetHeight(math.max(visibleHeight, contentHeight + 8))
     end
     self.meterPanel:Show()
+    self:UpdateSpellBreakdownWindow()
 end
 
 function ClassForge:IsChatDecorationEnabled()

@@ -2,8 +2,8 @@ ClassForge = ClassForge or {}
 
 ClassForge.name = "ClassForge"
 ClassForge.prefix = "CLASSFORGE"
-ClassForge.version = "3.5.2"
-ClassForge.dbVersion = 5
+ClassForge.version = "3.3.3"
+ClassForge.dbVersion = 6
 ClassForge.homepage = "https://github.com/MrKrisSatan/ClassForge"
 ClassForge.releasesPage = "https://github.com/MrKrisSatan/ClassForge/releases"
 
@@ -48,6 +48,9 @@ ClassForge.defaults = {
             enabled = true,
             locked = false,
             view = "dps",
+            persistent = false,
+            includePets = true,
+            debug = false,
             maxRows = 5,
             showDps = true,
             showTopSpell = true,
@@ -88,7 +91,18 @@ local registeredEvents = {
     "PLAYER_REGEN_ENABLED",
     "COMBAT_LOG_EVENT_UNFILTERED",
     "UNIT_COMBAT",
+    "UNIT_SPELLCAST_SUCCEEDED",
+    "UNIT_HEALTH",
     "CHAT_MSG_ADDON",
+    "CHAT_MSG_COMBAT_SELF_HITS",
+    "CHAT_MSG_COMBAT_FRIENDLYPLAYER_HITS",
+    "CHAT_MSG_COMBAT_HOSTILEPLAYER_HITS",
+    "CHAT_MSG_SPELL_SELF_DAMAGE",
+    "CHAT_MSG_SPELL_FRIENDLYPLAYER_DAMAGE",
+    "CHAT_MSG_SPELL_HOSTILEPLAYER_DAMAGE",
+    "CHAT_MSG_SPELL_PERIODIC_SELF_DAMAGE",
+    "CHAT_MSG_SPELL_PERIODIC_FRIENDLYPLAYER_DAMAGE",
+    "CHAT_MSG_SPELL_PERIODIC_HOSTILEPLAYER_DAMAGE",
     "GROUP_ROSTER_UPDATE",
     "GUILD_ROSTER_UPDATE",
     "PLAYER_GUILD_UPDATE",
@@ -193,6 +207,20 @@ ClassForge.translations = {
         profile_saved = "Profile saved.",
         language_updated = "Language updated.",
         meter_box = "Meter box",
+        meter_persistent = "Keep main meter until reset",
+        meter_mode_toggle = "Toggle segment/session mode",
+        meter_mode_segment = "Current fight",
+        meter_mode_session = "Since reset",
+        meter_include_pets = "Include pet damage and healing",
+        meter_debug = "Enable meter debug messages",
+        meter_debug_on = "Meter debug ON",
+        meter_debug_off = "Meter debug OFF",
+        meter_filter_clear = "Clear selected spell",
+        meter_click_segment = "Click a pie segment to focus that spell.",
+        hits = "Hits",
+        crits = "Crits",
+        min = "Min",
+        max = "Max",
         meter_view_dps = "Highest DPS",
         meter_view_threat = "Highest Threat",
         meter_view_healing_done = "Top Healing Done",
@@ -207,6 +235,11 @@ ClassForge.translations = {
         meter_max_rows = "Max DPS rows",
         meter_size = "Size",
         meter_export = "Export Meter",
+        meter_breakdown = "Spell Breakdown",
+        meter_damage_spells = "Damage Spells",
+        meter_healing_spells = "Healing Spells",
+        meter_contribution = "Contribution",
+        meter_no_spells = "No spell data yet.",
         meter_export_target = "Export target",
         meter_export_channel = "Channel name",
         export_say = "Say",
@@ -309,6 +342,20 @@ ClassForge.translations = {
         profile_saved = "Perfil guardado.",
         language_updated = "Idioma actualizado.",
         meter_box = "Caja del medidor",
+        meter_persistent = "Mantener el medidor principal hasta restablecer",
+        meter_mode_toggle = "Cambiar modo segmento/sesion",
+        meter_mode_segment = "Combate actual",
+        meter_mode_session = "Desde reinicio",
+        meter_include_pets = "Incluir dano y sanacion de mascotas",
+        meter_debug = "Activar mensajes de depuracion del medidor",
+        meter_debug_on = "Depuracion del medidor ACTIVADA",
+        meter_debug_off = "Depuracion del medidor DESACTIVADA",
+        meter_filter_clear = "Quitar hechizo seleccionado",
+        meter_click_segment = "Haz clic en un segmento para enfocar ese hechizo.",
+        hits = "Golpes",
+        crits = "Criticos",
+        min = "Min",
+        max = "Max",
         meter_view_dps = "Mayor DPS",
         meter_view_threat = "Mayor amenaza",
         meter_view_healing_done = "Más sanación hecha",
@@ -323,6 +370,11 @@ ClassForge.translations = {
         meter_max_rows = "Máx. filas de DPS",
         meter_size = "Tamaño",
         meter_export = "Exportar medidor",
+        meter_breakdown = "Desglose de hechizos",
+        meter_damage_spells = "Hechizos de daño",
+        meter_healing_spells = "Hechizos de sanación",
+        meter_contribution = "Contribución",
+        meter_no_spells = "Aún no hay datos de hechizos.",
         meter_export_target = "Destino de exportación",
         meter_export_channel = "Nombre del canal",
         export_say = "Decir",
@@ -425,6 +477,20 @@ ClassForge.translations = {
         profile_saved = "Профиль сохранен.",
         language_updated = "Язык обновлен.",
         meter_box = "Окно метра",
+        meter_persistent = "Сохранять основной метр до сброса",
+        meter_mode_toggle = "Переключить режим сегмент/сессия",
+        meter_mode_segment = "Текущий бой",
+        meter_mode_session = "С момента сброса",
+        meter_include_pets = "Учитывать урон и лечение питомцев",
+        meter_debug = "Включить отладку метра",
+        meter_debug_on = "Отладка метра ВКЛ",
+        meter_debug_off = "Отладка метра ВЫКЛ",
+        meter_filter_clear = "Сбросить выбранное заклинание",
+        meter_click_segment = "Щелкните по сектору, чтобы выбрать это заклинание.",
+        hits = "Попадания",
+        crits = "Криты",
+        min = "Мин",
+        max = "Макс",
         meter_view_dps = "Наивысший DPS",
         meter_view_threat = "Наивысшая угроза",
         meter_view_healing_done = "Лучшее исцеление",
@@ -439,6 +505,11 @@ ClassForge.translations = {
         meter_max_rows = "Макс. строк DPS",
         meter_size = "Размер",
         meter_export = "Экспорт метра",
+        meter_breakdown = "Разбор заклинаний",
+        meter_damage_spells = "Заклинания урона",
+        meter_healing_spells = "Заклинания лечения",
+        meter_contribution = "Вклад",
+        meter_no_spells = "Пока нет данных по заклинаниям.",
         meter_export_target = "Куда экспортировать",
         meter_export_channel = "Имя канала",
         export_say = "Сказать",
@@ -778,14 +849,16 @@ function ClassForge:PLAYER_REGEN_DISABLED()
         return
     end
 
-    if self.ResetMeterCombat then
+    if self.ResetMeterCombat and not self:IsMeterPersistent() then
         self:ResetMeterCombat()
-        if self.EnsureMeterCombatActive then
-            self:EnsureMeterCombatActive()
-        end
-        if self.SeedMeterParticipants then
-            self:SeedMeterParticipants()
-        end
+    end
+    if self.EnsureMeterCombatActive then
+        self:EnsureMeterCombatActive()
+    end
+    if self.SeedMeterParticipants then
+        self:SeedMeterParticipants()
+    end
+    if self.UpdateMeterPanel then
         self:UpdateMeterPanel()
     end
 end
@@ -799,8 +872,341 @@ function ClassForge:PLAYER_REGEN_ENABLED()
         self.meterState.combat.active = false
         self.meterState.combat.ended = (GetTime and GetTime()) or time()
     end
+    self.pendingSpellDamage = {}
     if self.UpdateMeterPanel then
         self:UpdateMeterPanel()
+    end
+end
+
+function ClassForge:ConsumePendingMeleeSpell(destGUID)
+    local pending = self.pendingSpellDamage
+    if type(pending) ~= "table" or #pending == 0 then
+        return nil
+    end
+
+    local now = (GetTime and GetTime()) or time()
+    for index = #pending, 1, -1 do
+        local item = pending[index]
+        if (now - (item.started or now)) > 6 then
+            table.remove(pending, index)
+        elseif (now - (item.started or now)) <= 0.4 and (not destGUID or not item.targetGUID or item.targetGUID == destGUID) then
+            table.remove(pending, index)
+            return item.spell
+        end
+    end
+
+    return nil
+end
+
+function ClassForge:ConsumeSwingOverride(destGUID, amount)
+    local override = self.pendingSwingOverride
+    if type(override) ~= "table" then
+        return nil, nil
+    end
+
+    local now = (GetTime and GetTime()) or time()
+    if (override.expires or 0) < now then
+        self.pendingSwingOverride = nil
+        return nil, nil
+    end
+
+    if destGUID and override.targetGUID and override.targetGUID ~= destGUID then
+        return nil, nil
+    end
+
+    local overrideAmount = tonumber(override.amount) or 0
+    local swingAmount = tonumber(amount) or 0
+    if overrideAmount > 0 and (swingAmount <= 0 or math.abs(overrideAmount - swingAmount) <= 1) then
+        self.pendingSwingOverride = nil
+        return override.spell, overrideAmount
+    end
+
+    return nil, nil
+end
+
+function ClassForge:ProcessPendingSpellDamage(unit)
+    local pending = self.pendingSpellDamage
+    if type(pending) ~= "table" or #pending == 0 then
+        return false
+    end
+
+    unit = unit or "target"
+    if unit ~= "target" or not UnitExists(unit) then
+        return false
+    end
+
+    local now = (GetTime and GetTime()) or time()
+    local currentGUID = UnitGUID and UnitGUID(unit) or nil
+    local currentHealth = UnitHealth and UnitHealth(unit) or nil
+    if not currentHealth then
+        return false
+    end
+
+    for index = #pending, 1, -1 do
+        local item = pending[index]
+        if (now - (item.started or now)) > 6 then
+            table.remove(pending, index)
+        elseif item.targetGUID and currentGUID and item.targetGUID ~= currentGUID then
+            -- Keep waiting briefly in case the player swaps targets back.
+        elseif currentHealth < (item.health or 0) then
+            local delta = (item.health or 0) - currentHealth
+            if delta > 0 and self.RecordMeterDamage then
+                self:RecordMeterDamage(UnitName("player"), item.spell, delta, nil, UnitGUID and UnitGUID("player") or nil)
+                self:MeterDebug("health fallback recorded " .. tostring(item.spell) .. " for " .. tostring(delta))
+                table.remove(pending, index)
+                return true
+            end
+            table.remove(pending, index)
+        end
+    end
+
+    return false
+end
+
+function ClassForge:TryRecordSelfCombatText(message, periodic)
+    if not self:IsMeterEnabled() or not message or message == "" or not self.RecordMeterDamage then
+        return false
+    end
+
+    local playerName = UnitName("player") or ""
+    local escapedPlayerName = string.gsub(playerName, "([^%w])", "%%%1")
+
+    local function firstPositiveInteger(text)
+        for numeric in string.gmatch(text or "", "(%d+)") do
+            local amount = tonumber(numeric)
+            if amount and amount > 0 then
+                return amount
+            end
+        end
+
+        return nil
+    end
+
+    local spellName, amount = string.match(message, "^Your (.+) hits .+ for (%d+)")
+    if not spellName then
+        spellName, amount = string.match(message, "^Your (.+) crits .+ for (%d+)")
+    end
+    if not spellName then
+        spellName, amount = string.match(message, "^Your (.+) drains .+ for (%d+)")
+    end
+    if not spellName and periodic then
+        spellName, amount = string.match(message, "^.+ suffers (%d+) .+ damage from your (.+)%.")
+        if spellName and amount then
+            spellName, amount = amount, spellName
+        end
+    end
+    if not spellName and escapedPlayerName ~= "" then
+        spellName, amount = string.match(message, "^" .. escapedPlayerName .. "'s (.+) hits .+ for (%d+)")
+    end
+    if not spellName and escapedPlayerName ~= "" then
+        spellName, amount = string.match(message, "^" .. escapedPlayerName .. "'s (.+) crits .+ for (%d+)")
+    end
+    if not spellName and escapedPlayerName ~= "" then
+        spellName, amount = string.match(message, "^" .. escapedPlayerName .. "'s (.+) drains .+ for (%d+)")
+    end
+
+    local numericAmount = tonumber(amount)
+    if spellName and numericAmount and numericAmount > 0 then
+        local _, _, _, castTime, _, maxRange = GetSpellInfo and GetSpellInfo(spellName) or nil
+        local isMeleeSpecial = false
+        if castTime == 0 then
+            local lowRange = tonumber(maxRange or 0) <= 5
+            local lowerSpell = string.lower(spellName)
+            local meleeHint = string.find(lowerSpell, "strike", 1, true)
+                or string.find(lowerSpell, "slash", 1, true)
+                or string.find(lowerSpell, "stab", 1, true)
+            isMeleeSpecial = lowRange or meleeHint
+        end
+
+        if isMeleeSpecial then
+            self.pendingSwingOverride = {
+                spell = spellName,
+                amount = numericAmount,
+                targetGUID = UnitGUID and UnitGUID("target") or nil,
+                expires = ((GetTime and GetTime()) or time()) + 0.6,
+            }
+            return true
+        end
+
+        self:RecordMeterDamage(UnitName("player"), spellName, numericAmount, nil, UnitGUID and UnitGUID("player") or nil)
+        self:MeterDebug("chat fallback recorded " .. tostring(spellName) .. " for " .. tostring(numericAmount))
+        if self.UpdateMeterPanel then
+            self:UpdateMeterPanel()
+        end
+        return true
+    end
+
+    local pending = self.pendingSpellDamage
+    if type(pending) == "table" and #pending > 0 then
+        local pendingAmount = firstPositiveInteger(message)
+        if pendingAmount and pendingAmount > 0 then
+            local fallbackIndex = nil
+            local fallbackItem = nil
+            for index = #pending, 1, -1 do
+                local item = pending[index]
+                if item and item.spell then
+                    local _, _, _, castTime, _, maxRange = GetSpellInfo and GetSpellInfo(item.spell) or nil
+                    local isMeleeSpecial = false
+                    if castTime == 0 then
+                        local lowRange = tonumber(maxRange or 0) <= 5
+                        local lowerSpell = string.lower(item.spell)
+                        local meleeHint = string.find(lowerSpell, "strike", 1, true)
+                            or string.find(lowerSpell, "slash", 1, true)
+                            or string.find(lowerSpell, "stab", 1, true)
+                        isMeleeSpecial = lowRange or meleeHint
+                    end
+
+                    if not fallbackItem and not isMeleeSpecial then
+                        fallbackIndex = index
+                        fallbackItem = item
+                        fallbackItem.isMeleeSpecial = false
+                    end
+                end
+            end
+
+            if fallbackItem then
+                table.remove(pending, fallbackIndex)
+                self:RecordMeterDamage(UnitName("player"), fallbackItem.spell, pendingAmount, nil, UnitGUID and UnitGUID("player") or nil)
+                self:MeterDebug("pending fallback recorded " .. tostring(fallbackItem.spell) .. " for " .. tostring(pendingAmount))
+                if self.UpdateMeterPanel then
+                    self:UpdateMeterPanel()
+                end
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+do
+    local function toNumber(value)
+        return tonumber(value) or 0
+    end
+
+    local function normalizePlayerSource(self, sourceGUID, sourceName)
+        if not sourceName and UnitGUID and sourceGUID and sourceGUID == UnitGUID("player") then
+            sourceName = UnitName("player")
+        end
+
+        local playerGUID = UnitGUID and UnitGUID("player") or nil
+        local playerName = UnitName("player")
+        if sourceName and (sourceName == "You" or sourceName == self:L("you")) and playerName then
+            sourceName = playerName
+        end
+        if not sourceGUID and playerGUID and sourceName and playerName and self:NormalizePlayerName(sourceName) == self:NormalizePlayerName(playerName) then
+            sourceGUID = playerGUID
+        end
+
+        return sourceGUID, sourceName
+    end
+
+    local function recordSwingDamage(self, _, _, sourceGUID, sourceName, sourceFlags, destGUID, _, _, ...)
+        local amount, overkill, school, resisted, blocked, absorbed, critical, glancing, crushing = ...
+        local damageAmount = toNumber(amount)
+        local swingLabel = "Melee"
+
+        if (sourceGUID and UnitGUID and sourceGUID == UnitGUID("player"))
+            or (sourceName and UnitName("player") and self:NormalizePlayerName(sourceName) == self:NormalizePlayerName(UnitName("player"))) then
+            local overrideLabel, overrideAmount = nil, nil
+            if self.ConsumeSwingOverride then
+                overrideLabel, overrideAmount = self:ConsumeSwingOverride(destGUID, damageAmount)
+            end
+            if overrideLabel then
+                swingLabel = overrideLabel
+                damageAmount = overrideAmount or damageAmount
+            elseif self.ConsumePendingMeleeSpell then
+                swingLabel = self:ConsumePendingMeleeSpell(destGUID) or swingLabel
+            end
+        end
+
+        self:RecordMeterDamage(sourceName, swingLabel, damageAmount, sourceFlags, sourceGUID, {
+            spellID = 6603,
+            school = 1,
+            overkill = toNumber(overkill),
+            resisted = toNumber(resisted),
+            blocked = toNumber(blocked),
+            absorbed = toNumber(absorbed),
+            critical = critical,
+            glancing = glancing,
+            crushing = crushing,
+        })
+    end
+
+    local function recordSpellDamage(self, _, _, sourceGUID, sourceName, sourceFlags, _, _, _, ...)
+        local spellID, spellName, spellSchool, amount, overkill, school, resisted, blocked, absorbed, critical, glancing, crushing = ...
+        self:RecordMeterDamage(sourceName, spellName, toNumber(amount), sourceFlags, sourceGUID, {
+            spellID = spellID,
+            school = spellSchool or school,
+            overkill = toNumber(overkill),
+            resisted = toNumber(resisted),
+            blocked = toNumber(blocked),
+            absorbed = toNumber(absorbed),
+            critical = critical,
+            glancing = glancing,
+            crushing = crushing,
+        })
+    end
+
+    local function recordSpellHeal(self, _, _, sourceGUID, sourceName, sourceFlags, _, destName, _, ...)
+        local spellID, spellName, spellSchool, amount, overheal, absorbed, critical = ...
+        self:RecordMeterHealing(sourceName, toNumber(amount), sourceFlags, sourceGUID, destName, spellName, {
+            spellID = spellID,
+            school = spellSchool,
+            overheal = toNumber(overheal),
+            absorbed = toNumber(absorbed),
+            critical = critical,
+        })
+    end
+
+    local function recordSpellMiss(self, _, _, sourceGUID, sourceName, sourceFlags, _, _, _, ...)
+        local spellID, spellName, spellSchool, missType = ...
+        if self.RecordMeterMiss then
+            self:RecordMeterMiss(sourceName, spellName, sourceFlags, sourceGUID, {
+                spellID = spellID,
+                school = spellSchool,
+                missed = missType,
+            })
+        end
+    end
+
+    local function recordSwingMiss(self, _, _, sourceGUID, sourceName, sourceFlags, _, _, _, ...)
+        local missType = ...
+        if self.RecordMeterMiss then
+            self:RecordMeterMiss(sourceName, "Melee", sourceFlags, sourceGUID, {
+                spellID = 6603,
+                school = 1,
+                missed = missType,
+            })
+        end
+    end
+
+    local meterCLEUHandlers = {
+        SWING_DAMAGE = recordSwingDamage,
+        SPELL_DAMAGE = recordSpellDamage,
+        SPELL_PERIODIC_DAMAGE = recordSpellDamage,
+        SPELL_BUILDING_DAMAGE = recordSpellDamage,
+        RANGE_DAMAGE = recordSpellDamage,
+        DAMAGE_SHIELD = recordSpellDamage,
+        DAMAGE_SPLIT = recordSpellDamage,
+        SPELL_HEAL = recordSpellHeal,
+        SPELL_PERIODIC_HEAL = recordSpellHeal,
+        SPELL_MISSED = recordSpellMiss,
+        SPELL_PERIODIC_MISSED = recordSpellMiss,
+        SPELL_BUILDING_MISSED = recordSpellMiss,
+        RANGE_MISSED = recordSpellMiss,
+        SWING_MISSED = recordSwingMiss,
+    }
+
+    function ClassForge:DispatchMeterCombatEvent(timestamp, eventType, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, ...)
+        local handler = meterCLEUHandlers[eventType]
+        if not handler then
+            return false
+        end
+
+        sourceGUID, sourceName = normalizePlayerSource(self, sourceGUID, sourceName)
+        handler(self, timestamp, eventType, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, ...)
+        return true
     end
 end
 
@@ -813,65 +1219,89 @@ function ClassForge:COMBAT_LOG_EVENT_UNFILTERED(...)
         return
     end
 
-    local timestamp, eventType, hideCaster, sourceGUID, sourceName, sourceFlags, sourceRaidFlags, destGUID, destName, destFlags, destRaidFlags, arg1, arg2, arg3, arg4, arg5, arg6, arg7 = ...
+    local payload = { ... }
+    local timestamp = nil
+    local eventType = nil
+    local sourceGUID = nil
+    local sourceName = nil
+    local sourceFlags = nil
+    local destGUID = nil
+    local destName = nil
+    local destFlags = nil
+    local extras = {}
+
+    local function normalizeCombatPayload(raw)
+        local normalized = {
+            timestamp = raw[1],
+            eventType = raw[2],
+            sourceGUID = nil,
+            sourceName = nil,
+            sourceFlags = nil,
+            destGUID = nil,
+            destName = nil,
+            destFlags = nil,
+            extras = {},
+        }
+
+        if type(raw[3]) == "boolean" then
+            normalized.sourceGUID = raw[4]
+            normalized.sourceName = raw[5]
+            normalized.sourceFlags = raw[6]
+            normalized.destGUID = raw[8]
+            normalized.destName = raw[9]
+            normalized.destFlags = raw[10]
+            for index = 12, #raw do
+                normalized.extras[#normalized.extras + 1] = raw[index]
+            end
+        else
+            normalized.sourceGUID = raw[3]
+            normalized.sourceName = raw[4]
+            normalized.sourceFlags = raw[5]
+            normalized.destGUID = raw[6]
+            normalized.destName = raw[7]
+            normalized.destFlags = raw[8]
+            for index = 9, #raw do
+                normalized.extras[#normalized.extras + 1] = raw[index]
+            end
+        end
+
+        return normalized
+    end
+
+    local normalized = normalizeCombatPayload(payload)
+    timestamp = normalized.timestamp
+    eventType = normalized.eventType
+    sourceGUID = normalized.sourceGUID
+    sourceName = normalized.sourceName
+    sourceFlags = normalized.sourceFlags
+    destGUID = normalized.destGUID
+    destName = normalized.destName
+    destFlags = normalized.destFlags
+    extras = normalized.extras
+
     if not eventType and _G.arg2 then
-        timestamp = _G.arg1
-        eventType = _G.arg2
-        hideCaster = _G.arg3
-        sourceGUID = _G.arg4
-        sourceName = _G.arg5
-        sourceFlags = _G.arg6
-        sourceRaidFlags = _G.arg7
-        destGUID = _G.arg8
-        destName = _G.arg9
-        destFlags = _G.arg10
-        destRaidFlags = _G.arg11
-        arg1 = _G.arg12
-        arg2 = _G.arg13
-        arg3 = _G.arg14
-        arg4 = _G.arg15
-        arg5 = _G.arg16
-        arg6 = _G.arg17
-        arg7 = _G.arg18
+        local raw = {}
+        for index = 1, 30 do
+            raw[index] = _G["arg" .. index]
+        end
+        normalized = normalizeCombatPayload(raw)
+        timestamp = normalized.timestamp
+        eventType = normalized.eventType
+        sourceGUID = normalized.sourceGUID
+        sourceName = normalized.sourceName
+        sourceFlags = normalized.sourceFlags
+        destGUID = normalized.destGUID
+        destName = normalized.destName
+        destFlags = normalized.destFlags
+        extras = normalized.extras
     end
 
     if not eventType then
         return
     end
 
-    if not sourceName and UnitGUID and sourceGUID and sourceGUID == UnitGUID("player") then
-        sourceName = UnitName("player")
-    end
-
-    local function firstPositiveNumber(...)
-        for index = 1, select("#", ...) do
-            local value = select(index, ...)
-            local numeric = tonumber(value)
-            if numeric and numeric > 0 then
-                return numeric
-            end
-        end
-
-        return 0
-    end
-
-    local spellLabel = "Melee"
-    if type(arg2) == "string" and arg2 ~= "" then
-        spellLabel = arg2
-    elseif type(arg1) == "string" and arg1 ~= "" then
-        spellLabel = arg1
-    end
-
-    if eventType == "SWING_DAMAGE" then
-        self:RecordMeterDamage(sourceName, "Melee", tonumber(arg1) or 0, sourceFlags, sourceGUID)
-    elseif eventType == "RANGE_DAMAGE" or eventType == "SPELL_DAMAGE" or eventType == "SPELL_PERIODIC_DAMAGE" then
-        self:RecordMeterDamage(sourceName, spellLabel, firstPositiveNumber(arg4, arg5, arg6, arg7, arg1, arg3), sourceFlags, sourceGUID)
-    elseif eventType == "DAMAGE_SHIELD" or eventType == "DAMAGE_SPLIT" then
-        self:RecordMeterDamage(sourceName, spellLabel, firstPositiveNumber(arg4, arg5, arg6, arg7, arg1, arg3), sourceFlags, sourceGUID)
-    elseif eventType == "SPELL_HEAL" or eventType == "SPELL_PERIODIC_HEAL" then
-        self:RecordMeterHealing(sourceName, firstPositiveNumber(arg4, arg5, arg6, arg7, arg1, arg3), sourceFlags, sourceGUID, destName)
-    elseif eventType == "SPELL_BUILDING_DAMAGE" then
-        self:RecordMeterDamage(sourceName, spellLabel, firstPositiveNumber(arg4, arg5, arg6, arg7, arg1, arg3), sourceFlags, sourceGUID)
+    if self.DispatchMeterCombatEvent then
+        self:DispatchMeterCombatEvent(timestamp, eventType, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, unpack(extras))
     end
 
     if self.UpdateMeterPanel then
@@ -879,7 +1309,7 @@ function ClassForge:COMBAT_LOG_EVENT_UNFILTERED(...)
     end
 end
 
-function ClassForge:UNIT_COMBAT(unit, action, descriptor, amount, damageType)
+function ClassForge:UNIT_COMBAT(unit, action, descriptor, amount, damageType, ...)
     if not self:IsMeterEnabled() then
         return
     end
@@ -901,19 +1331,126 @@ function ClassForge:UNIT_COMBAT(unit, action, descriptor, amount, damageType)
 
     local sourceName = UnitName(unit)
     local sourceGUID = UnitGUID and UnitGUID(unit) or nil
-    local value = tonumber(amount) or 0
-    local label = self:Trim(descriptor) ~= "" and descriptor or "Melee"
     local normalizedAction = self:Trim(action):upper()
+    local args = { descriptor, amount, damageType, ... }
+    local value = 0
+    local label = nil
 
-    if normalizedAction == "WOUND" or normalizedAction == "DAMAGE" or normalizedAction == "SPELL" or normalizedAction == "SPELL_DAMAGE" then
-        self:RecordMeterDamage(sourceName, label, value, nil, sourceGUID)
-    elseif normalizedAction == "HEAL" or normalizedAction == "SPELL_HEAL" then
-        self:RecordMeterHealing(sourceName, value, nil, sourceGUID)
-    else
+    for _, candidate in ipairs(args) do
+        if value <= 0 then
+            local numeric = tonumber(candidate)
+            if numeric and numeric > 0 then
+                value = numeric
+            end
+        end
+
+        if not label and type(candidate) == "string" then
+            local trimmed = self:Trim(candidate)
+            if trimmed ~= "" and trimmed ~= unit and string.upper(trimmed) ~= normalizedAction then
+                label = trimmed
+            end
+        end
+    end
+
+    label = label or (self:Trim(descriptor) ~= "" and self:Trim(descriptor)) or "Melee"
+
+    if value <= 0 then
         return
+    end
+
+    if normalizedAction == "WOUND" then
+        return
+    elseif string.find(normalizedAction, "HEAL", 1, true) then
+        self:RecordMeterHealing(sourceName, value, nil, sourceGUID, unit, label)
+    elseif string.find(normalizedAction, "DAMAGE", 1, true)
+        or normalizedAction == "SPELL"
+        or normalizedAction == "HIT" then
+        self:RecordMeterDamage(sourceName, label, value, nil, sourceGUID)
+    else
+        self:RecordMeterDamage(sourceName, label, value, nil, sourceGUID)
     end
 
     if self.UpdateMeterPanel then
         self:UpdateMeterPanel()
     end
+end
+
+function ClassForge:UNIT_SPELLCAST_SUCCEEDED(unit, spellName)
+    if not self:IsMeterEnabled() or unit ~= "player" then
+        return
+    end
+
+    if not spellName or self:Trim(spellName) == "" then
+        return
+    end
+
+    if not UnitExists("target") or not UnitCanAttack("player", "target") or UnitIsDead("target") then
+        return
+    end
+
+    local targetGUID = UnitGUID and UnitGUID("target") or nil
+    local targetName = UnitName("target")
+    local targetHealth = UnitHealth and UnitHealth("target") or nil
+    local targetMaxHealth = UnitHealthMax and UnitHealthMax("target") or nil
+    if not targetGUID or not targetName or not targetHealth or targetHealth <= 0 then
+        return
+    end
+
+    self.pendingSpellDamage = type(self.pendingSpellDamage) == "table" and self.pendingSpellDamage or {}
+    self.pendingSpellDamage[#self.pendingSpellDamage + 1] = {
+        spell = spellName,
+        targetGUID = targetGUID,
+        targetName = targetName,
+        health = targetHealth,
+        maxHealth = targetMaxHealth or 0,
+        started = (GetTime and GetTime()) or time(),
+    }
+end
+
+function ClassForge:UNIT_HEALTH(unit)
+    if not self:IsMeterEnabled() then
+        return
+    end
+
+    if self.ProcessPendingSpellDamage and self:ProcessPendingSpellDamage(unit) then
+        if self.UpdateMeterPanel then
+            self:UpdateMeterPanel()
+        end
+    end
+end
+
+function ClassForge:CHAT_MSG_SPELL_SELF_DAMAGE(message)
+    self:TryRecordSelfCombatText(message, false)
+end
+
+function ClassForge:CHAT_MSG_SPELL_FRIENDLYPLAYER_DAMAGE(message)
+    self:TryRecordSelfCombatText(message, false)
+end
+
+function ClassForge:CHAT_MSG_SPELL_HOSTILEPLAYER_DAMAGE(message)
+    self:TryRecordSelfCombatText(message, false)
+end
+
+function ClassForge:CHAT_MSG_SPELL_PERIODIC_SELF_DAMAGE(message)
+    self:TryRecordSelfCombatText(message, true)
+end
+
+function ClassForge:CHAT_MSG_SPELL_PERIODIC_FRIENDLYPLAYER_DAMAGE(message)
+    self:TryRecordSelfCombatText(message, true)
+end
+
+function ClassForge:CHAT_MSG_SPELL_PERIODIC_HOSTILEPLAYER_DAMAGE(message)
+    self:TryRecordSelfCombatText(message, true)
+end
+
+function ClassForge:CHAT_MSG_COMBAT_SELF_HITS(message)
+    self:TryRecordSelfCombatText(message, false)
+end
+
+function ClassForge:CHAT_MSG_COMBAT_FRIENDLYPLAYER_HITS(message)
+    self:TryRecordSelfCombatText(message, false)
+end
+
+function ClassForge:CHAT_MSG_COMBAT_HOSTILEPLAYER_HITS(message)
+    self:TryRecordSelfCombatText(message, false)
 end
