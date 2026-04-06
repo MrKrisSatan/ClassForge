@@ -2,7 +2,7 @@ ClassForge = ClassForge or {}
 
 ClassForge.name = "ClassForge"
 ClassForge.prefix = "CLASSFORGE"
-ClassForge.version = "3.3.3"
+ClassForge.version = "3.5.3"
 ClassForge.dbVersion = 6
 ClassForge.homepage = "https://github.com/MrKrisSatan/ClassForge"
 ClassForge.releasesPage = "https://github.com/MrKrisSatan/ClassForge/releases"
