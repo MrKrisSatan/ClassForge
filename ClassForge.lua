@@ -2,8 +2,8 @@ ClassForge = ClassForge or {}
 
 ClassForge.name = "ClassForge"
 ClassForge.prefix = "CLASSFORGE"
-ClassForge.version = "3.6.1"
-ClassForge.dbVersion = 8
+ClassForge.version = "3.6.3"
+ClassForge.dbVersion = 9
 ClassForge.homepage = "https://github.com/MrKrisSatan/ClassForge"
 ClassForge.releasesPage = "https://github.com/MrKrisSatan/ClassForge/releases"
 
@@ -17,6 +17,8 @@ ClassForge.defaults = {
         role = "DPS",
         description = "",
         spellHistory = {},
+        autoClassManualOverride = false,
+        autoClassSignature = "",
     },
     profile = {
         enabled = true,
@@ -79,6 +81,10 @@ ClassForge.defaults = {
         colors = {
             groupFrames = true,
         },
+        autoClass = {
+            enabled = true,
+            maxLevel = 1,
+        },
     },
 }
 
@@ -86,9 +92,12 @@ local registeredEvents = {
     "ADDON_LOADED",
     "PLAYER_LOGIN",
     "PLAYER_ENTERING_WORLD",
+    "PLAYER_LEVEL_UP",
     "PLAYER_TALENT_UPDATE",
     "PLAYER_ROLES_ASSIGNED",
     "ACTIVE_TALENT_GROUP_CHANGED",
+    "SPELLS_CHANGED",
+    "LEARNED_SPELL_IN_TAB",
     "PLAYER_REGEN_DISABLED",
     "PLAYER_REGEN_ENABLED",
     "COMBAT_LOG_EVENT_UNFILTERED",
@@ -122,6 +131,12 @@ addon:SetScript("OnEvent", function(_, event, ...)
     local handler = ClassForge[event]
     if handler then
         handler(ClassForge, ...)
+    end
+end)
+
+addon:SetScript("OnUpdate", function(_, elapsed)
+    if ClassForge.UpdateAutoClassWatcher then
+        ClassForge:UpdateAutoClassWatcher(elapsed)
     end
 end)
 
@@ -190,6 +205,7 @@ ClassForge.translations = {
         lock_target_panel = "Lock target profile panel position",
         compact_target_panel = "Use compact target profile panel",
         color_group_frames = "Color party and raid frame names with custom class color",
+        auto_class_low_level = "Auto-assign class preset from level 1 known spells",
         reset_panel = "Reset Panel",
         panel_hint = "Hold Shift and drag the target profile when it is unlocked.",
         cached_players = "Cached players",
@@ -336,6 +352,7 @@ ClassForge.translations = {
         lock_target_panel = "Bloquear posición del panel del objetivo",
         compact_target_panel = "Usar panel de objetivo compacto",
         color_group_frames = "Colorear nombres de grupo y banda con el color de clase personalizado",
+        auto_class_low_level = "Asignar automaticamente un predefinido segun hechizos conocidos de nivel 1",
         reset_panel = "Restablecer panel",
         panel_hint = "Mantén Mayús y arrastra el perfil del objetivo cuando esté desbloqueado.",
         cached_players = "Jugadores en caché",
@@ -482,6 +499,7 @@ ClassForge.translations = {
         lock_target_panel = "Закрепить панель цели",
         compact_target_panel = "Использовать компактную панель цели",
         color_group_frames = "Красить имена группы и рейда цветом пользовательского класса",
+        auto_class_low_level = "Автоматически выбирать пресет по заклинаниям 1 уровня",
         reset_panel = "Сброс панели",
         panel_hint = "Удерживайте Shift и перетаскивайте профиль цели, когда он не закреплен.",
         cached_players = "Игроки в кэше",
@@ -666,6 +684,244 @@ function ClassForge:EnsureCurrentCharacterProfile()
     return characterProfile
 end
 
+ClassForge.autoClassPresets = {
+    {
+        name = "Abyssal Dreadstorm",
+        color = "6A0DAD",
+        description = "A walking calamity clad in flesh and fury, the Abyssal Dreadstorm is a harbinger of ruin that blurs the line between blade and cataclysm. Drawing power from the howling void beneath reality, they weave brutal melee strikes with surging tides of abyssal energy, tearing through enemies in a relentless storm of steel and shadow. Each swing feeds the tempest within, building toward devastating spellbursts that crack the battlefield open like a wound. To face a Dreadstorm is not to duel a warrior, but to stand against an oncoming apocalypse given form.",
+        required = { "Blood Presence", "Sinister Strike", "Flametongue Weapon", "Seal of Righteousness" },
+        weights = { ["Blood Presence"] = 5, ["Sinister Strike"] = 5, ["Flametongue Weapon"] = 5, ["Seal of Righteousness"] = 5, ["Shadow Bolt"] = 2, ["Earth Shock"] = 2 },
+    },
+    {
+        name = "Runeblade Ravager",
+        color = "C41E3A",
+        description = "A death-charged melee executioner, the Runeblade Ravager turns presence, plague, and weapon strikes into a ruthless close-range engine. They carve through enemies with runic pressure and blood-fed momentum, building every exchange toward a killing blow.",
+        weights = { ["Blood Presence"] = 5, ["Blood Strike"] = 5, ["Plague Strike"] = 4, ["Obliterate"] = 4, ["Death Strike"] = 4, ["Icy Touch"] = 2 },
+    },
+    {
+        name = "Stormbrand Striker",
+        color = "00BFFF",
+        description = "A crackling weapon-channeler, the Stormbrand Striker binds elemental force to every swing. Flametongue, Stormstrike, and sudden shocks turn their melee rhythm into a rolling thunderhead of steel and lightning.",
+        weights = { ["Stormstrike"] = 6, ["Flametongue Weapon"] = 5, ["Earth Shock"] = 4, ["Lightning Shield"] = 3, ["Strength of Earth Totem"] = 2, ["Searing Totem"] = 2 },
+    },
+    {
+        name = "Radiant Blade",
+        color = "F48CBA",
+        description = "A holy melee champion, the Radiant Blade carries divine judgment into the front line. Seals, crusader strikes, and righteous force turn their weapon into a bright sentence passed on anything foolish enough to stand close.",
+        weights = { ["Seal of Righteousness"] = 5, ["Crusader Strike"] = 6, ["Judgement of Light"] = 4, ["Judgement of Wisdom"] = 4, ["Blessing of Might"] = 3, ["Consecration"] = 2 },
+    },
+    {
+        name = "Shadowcut Duelist",
+        color = "2B2B2B",
+        description = "A quick-handed melee opportunist, the Shadowcut Duelist wins through openings, poisons, and vicious precision. Sinister Strike, Slice and Dice, and finishing blows make them less a soldier than a sudden bad decision with a blade.",
+        weights = { ["Sinister Strike"] = 5, ["Slice and Dice"] = 5, ["Eviscerate"] = 4, ["Backstab"] = 4, ["Gouge"] = 3, ["Stealth"] = 2 },
+    },
+    {
+        name = "Feral Ripper",
+        color = "FF7C0A",
+        description = "A shapeshifting predator, the Feral Ripper fights from instinct, momentum, and blood on the ground. Cat Form, Claw, and Rip make every second in melee feel like being hunted by the wild itself.",
+        weights = { ["Cat Form"] = 6, ["Claw"] = 5, ["Rip"] = 5, ["Prowl"] = 3, ["Feral Charge - Cat"] = 3, ["Mark of the Wild"] = 1 },
+    },
+    {
+        name = "Iron Mauler",
+        color = "708090",
+        description = "A brutal front-line bruiser, the Iron Mauler turns raw weapon pressure into steady ruin. Heroic Strike, Battle Shout, and heavy defensive instincts keep them planted in the fight long after softer killers would break.",
+        weights = { ["Heroic Strike"] = 5, ["Battle Shout"] = 4, ["Victory Rush"] = 4, ["Bloodrage"] = 3, ["Battle Stance"] = 2, ["Rend"] = 2 },
+    },
+    {
+        name = "Wildfang Warden",
+        color = "AAD372",
+        description = "A rugged beast-side skirmisher, the Wildfang Warden mixes hunter discipline with close-range savagery. Raptor Strike, Mongoose Bite, and animal instinct make them dangerous even when the fight collapses into tooth-and-claw range.",
+        weights = { ["Raptor Strike"] = 5, ["Mongoose Bite"] = 5, ["Aspect of the Monkey"] = 4, ["Hunter's Mark"] = 2, ["Tame Beast"] = 2, ["Serpent Sting"] = 2 },
+    },
+    {
+        name = "Felbrand Reaver",
+        color = "8788EE",
+        description = "A fel-touched aggressor, the Felbrand Reaver mixes weapon pressure with curses, flame, and demonic attrition. They do not simply cut enemies down; they make the wound burn, linger, and answer to darker powers.",
+        weights = { ["Demon Skin"] = 4, ["Immolate"] = 4, ["Corruption"] = 4, ["Curse of Agony"] = 3, ["Shadow Bolt"] = 3, ["Life Tap"] = 2 },
+    },
+    {
+        name = "Battle Cleric",
+        color = "FFDE59",
+        description = "A stubborn light-bearing combatant, the Battle Cleric survives by layering faith, protection, and punishment. Shields and blessings keep them moving while holy strikes and steady pressure wear the enemy down.",
+        weights = { ["Power Word: Shield"] = 4, ["Power Word: Fortitude"] = 3, ["Smite"] = 3, ["Renew"] = 2, ["Blessing of Might"] = 3, ["Seal of Righteousness"] = 3 },
+    },
+}
+
+function ClassForge:IsAutoClassEnabled()
+    local profile = self:GetProfile()
+    local autoClass = profile and profile.autoClass or nil
+    if autoClass and autoClass.enabled ~= nil then
+        return autoClass.enabled and true or false
+    end
+
+    return self.defaults.profile.autoClass.enabled and true or false
+end
+
+function ClassForge:SetAutoClassEnabled(enabled)
+    if not ClassForgeDB then
+        return
+    end
+
+    ClassForgeDB.profile = ClassForgeDB.profile or {}
+    ClassForgeDB.profile.autoClass = ClassForgeDB.profile.autoClass or {}
+    ClassForgeDB.profile.autoClass.enabled = enabled and true or false
+end
+
+function ClassForge:GetAutoClassMaxLevel()
+    local profile = self:GetProfile()
+    local autoClass = profile and profile.autoClass or nil
+    return tonumber(autoClass and autoClass.maxLevel) or self.defaults.profile.autoClass.maxLevel or 1
+end
+
+function ClassForge:IsAutoClassEligible()
+    if not self:IsAutoClassEnabled() then
+        return false
+    end
+
+    if not UnitLevel then
+        return false
+    end
+
+    local level = tonumber(UnitLevel("player")) or 0
+    return level == 1
+end
+
+function ClassForge:ShouldWatchAutoClass()
+    local characterProfile = self:GetCharacterProfile()
+    return self:IsAutoClassEligible() and not characterProfile.autoClassManualOverride
+end
+
+function ClassForge:RefreshAutoClassWatcher()
+    self.autoClassWatchElapsed = 0
+    self.autoClassWatcherActive = self:ShouldWatchAutoClass()
+end
+
+function ClassForge:UpdateAutoClassWatcher(elapsed)
+    if not self.autoClassWatcherActive then
+        return
+    end
+
+    if not self:ShouldWatchAutoClass() then
+        self.autoClassWatcherActive = false
+        return
+    end
+
+    self.autoClassWatchElapsed = (self.autoClassWatchElapsed or 0) + (tonumber(elapsed) or 0)
+    if self.autoClassWatchElapsed < 3 then
+        return
+    end
+
+    self.autoClassWatchElapsed = 0
+    self:ApplyAutoClassFromKnownSpells()
+end
+
+function ClassForge:GetKnownSpellSet()
+    local known = {}
+
+    if GetNumSpellTabs and GetSpellTabInfo and GetSpellName then
+        local bookType = BOOKTYPE_SPELL or "spell"
+        local spellOffset = 0
+        for tabIndex = 1, GetNumSpellTabs() do
+            local _, _, offset, numSpells = GetSpellTabInfo(tabIndex)
+            offset = tonumber(offset) or 0
+            numSpells = tonumber(numSpells) or 0
+            for spellIndex = offset + 1, offset + numSpells do
+                local spellName = GetSpellName(spellIndex, bookType)
+                if spellName and self:Trim(spellName) ~= "" then
+                    known[self:Trim(spellName)] = true
+                end
+            end
+            spellOffset = offset + numSpells
+        end
+
+        if spellOffset > 0 then
+            return known
+        end
+    end
+
+    return known
+end
+
+function ClassForge:GetKnownSpellSignature(known)
+    local names = {}
+    for spellName in pairs(known or {}) do
+        names[#names + 1] = spellName
+    end
+    table.sort(names)
+    return table.concat(names, "|")
+end
+
+function ClassForge:GetAutoClassPresetForKnownSpells(known)
+    local bestPreset, bestScore = nil, 0
+
+    for _, preset in ipairs(self.autoClassPresets or {}) do
+        local matchesRequired = true
+        if preset.required then
+            for _, spellName in ipairs(preset.required) do
+                if not known[spellName] then
+                    matchesRequired = false
+                    break
+                end
+            end
+        end
+
+        local score = matchesRequired and 20 or 0
+        for spellName, weight in pairs(preset.weights or {}) do
+            if known[spellName] then
+                score = score + (tonumber(weight) or 1)
+            end
+        end
+
+        if score > bestScore then
+            bestPreset = preset
+            bestScore = score
+        end
+    end
+
+    if bestScore <= 0 then
+        return nil
+    end
+
+    return bestPreset
+end
+
+function ClassForge:ApplyAutoClassFromKnownSpells(force)
+    if not self:IsAutoClassEligible() then
+        return false
+    end
+
+    local characterProfile = self:GetCharacterProfile()
+    if characterProfile.autoClassManualOverride and not force then
+        return false
+    end
+
+    local known = self:GetKnownSpellSet()
+    local preset = self:GetAutoClassPresetForKnownSpells(known)
+    if not preset then
+        return false
+    end
+
+    local signature = self:GetKnownSpellSignature(known)
+    if not force
+        and characterProfile.autoClassSignature == signature
+        and characterProfile.className == preset.name
+        and characterProfile.color == preset.color then
+        return false
+    end
+
+    characterProfile.className = preset.name
+    characterProfile.color = preset.color
+    characterProfile.description = preset.description or characterProfile.description or ""
+    characterProfile.autoClassSignature = signature
+    characterProfile.autoClassManualOverride = false
+
+    self:RefreshPlayerCache()
+    self:BroadcastStartup()
+    self:RefreshAllDisplays()
+    return true
+end
+
 function ClassForge:BuildProfileData()
     local profile = self:GetCharacterProfile()
 
@@ -763,6 +1019,8 @@ function ClassForge:PLAYER_LOGIN()
     }
 
     self:EnsureCurrentCharacterProfile()
+    self:ApplyAutoClassFromKnownSpells()
+    self:RefreshAutoClassWatcher()
     self:SetupSlashCommands()
     self:CreateOptionsPanel()
     self:InitDisplay()
@@ -776,6 +1034,8 @@ function ClassForge:PLAYER_LOGIN()
 end
 
 function ClassForge:PLAYER_ENTERING_WORLD()
+    self:ApplyAutoClassFromKnownSpells()
+    self:RefreshAutoClassWatcher()
     if ShowFriends then
         ShowFriends()
     end
@@ -788,6 +1048,26 @@ function ClassForge:PLAYER_ENTERING_WORLD()
     if self:IsAutoWhoOnLoginEnabled() then
         self:PerformWhoSync()
     end
+end
+
+function ClassForge:PLAYER_LEVEL_UP(level)
+    if tonumber(level) and tonumber(level) > 1 then
+        self.autoClassWatcherActive = false
+        return
+    end
+
+    self:ApplyAutoClassFromKnownSpells()
+    self:RefreshAutoClassWatcher()
+end
+
+function ClassForge:SPELLS_CHANGED()
+    self:ApplyAutoClassFromKnownSpells()
+    self:RefreshAutoClassWatcher()
+end
+
+function ClassForge:LEARNED_SPELL_IN_TAB()
+    self:ApplyAutoClassFromKnownSpells()
+    self:RefreshAutoClassWatcher()
 end
 
 function ClassForge:GROUP_ROSTER_UPDATE()

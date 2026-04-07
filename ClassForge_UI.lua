@@ -55,7 +55,10 @@ function ClassForge:HandleSlash(message)
             return
         end
 
-        self:GetCharacterProfile().className = rest
+        local characterProfile = self:GetCharacterProfile()
+        characterProfile.className = rest
+        characterProfile.autoClassManualOverride = true
+        self:RefreshAutoClassWatcher()
         self:RefreshPlayerCache()
         self:BroadcastStartup()
         self:RefreshAllDisplays()
@@ -70,7 +73,10 @@ function ClassForge:HandleSlash(message)
             return
         end
 
-        self:GetCharacterProfile().color = color
+        local characterProfile = self:GetCharacterProfile()
+        characterProfile.color = color
+        characterProfile.autoClassManualOverride = true
+        self:RefreshAutoClassWatcher()
         self:RefreshPlayerCache()
         self:BroadcastStartup()
         self:RefreshAllDisplays()
@@ -213,6 +219,10 @@ function ClassForge:HandleSlash(message)
         characterProfile.className = self.defaults.character.className
         characterProfile.color = self.defaults.character.color
         characterProfile.role = self.defaults.character.role
+        characterProfile.description = self.defaults.character.description or ""
+        characterProfile.autoClassManualOverride = false
+        characterProfile.autoClassSignature = ""
+        self:RefreshAutoClassWatcher()
         self:RefreshPlayerCache()
         self:BroadcastStartup()
         self:RefreshAllDisplays()
@@ -486,7 +496,10 @@ function ClassForge:CreateOptionsPanel()
     descriptionSaveButton:SetPoint("TOPLEFT", descriptionScroll, "BOTTOMLEFT", 0, -12)
     descriptionSaveButton:SetText(ClassForge:L("save"))
     descriptionSaveButton:SetScript("OnClick", function()
-        ClassForge:GetCharacterProfile().description = ClassForge:Trim(descriptionBox:GetText())
+        local characterProfile = ClassForge:GetCharacterProfile()
+        characterProfile.description = ClassForge:Trim(descriptionBox:GetText())
+        characterProfile.autoClassManualOverride = true
+        ClassForge:RefreshAutoClassWatcher()
         ClassForge:RefreshPlayerCache()
         ClassForge:BroadcastStartup()
         ClassForge:RefreshAllDisplays()
@@ -645,6 +658,8 @@ function ClassForge:CreateOptionsPanel()
         characterProfile.className = className ~= "" and className or ClassForge.defaults.character.className
         characterProfile.color = color or ClassForge.defaults.character.color
         characterProfile.description = ClassForge:Trim(descriptionBox:GetText())
+        characterProfile.autoClassManualOverride = true
+        ClassForge:RefreshAutoClassWatcher()
 
         ClassForge:RefreshPlayerCache()
         ClassForge:BroadcastStartup()
@@ -778,8 +793,23 @@ function ClassForge:CreateOptionsPanel()
         ClassForgeDB.profile.sync.autoWhoOnGroup = selfButton:GetChecked() and true or false
     end)
 
+    local autoClassToggle = CreateFrame("CheckButton", "ClassForgeOptionsAutoClassToggle", display, "UICheckButtonTemplate")
+    autoClassToggle:SetPoint("TOPLEFT", autoWhoGroupToggle, "BOTTOMLEFT", 0, -10)
+    _G[autoClassToggle:GetName() .. "Text"]:SetText(ClassForge:L("auto_class_low_level"))
+    autoClassToggle:SetScript("OnClick", function(selfButton)
+        ClassForge:SetAutoClassEnabled(selfButton:GetChecked())
+        if selfButton:GetChecked() then
+            local characterProfile = ClassForge:GetCharacterProfile()
+            characterProfile.autoClassManualOverride = false
+            ClassForge:ApplyAutoClassFromKnownSpells(true)
+        end
+        ClassForge:RefreshAutoClassWatcher()
+        ClassForge:RefreshPlayerCache()
+        ClassForge:RefreshAllDisplays()
+    end)
+
     local panelVisibleToggle = CreateFrame("CheckButton", "ClassForgeOptionsPanelVisibleToggle", display, "UICheckButtonTemplate")
-    panelVisibleToggle:SetPoint("TOPLEFT", autoWhoGroupToggle, "BOTTOMLEFT", 0, -10)
+    panelVisibleToggle:SetPoint("TOPLEFT", autoClassToggle, "BOTTOMLEFT", 0, -10)
     _G[panelVisibleToggle:GetName() .. "Text"]:SetText(ClassForge:L("show_target_panel"))
     panelVisibleToggle:SetScript("OnClick", function(selfButton)
         ClassForge:SetTargetProfileHidden(not selfButton:GetChecked())
@@ -1155,6 +1185,7 @@ function ClassForge:CreateOptionsPanel()
             .. " |cff808080-|r " .. ClassForge:L("locked") .. ": " .. (ClassForge:IsTargetProfileLocked() and ClassForge:L("yes") or ClassForge:L("no"))
             .. " |cff808080-|r " .. ClassForge:L("compact") .. ": " .. (ClassForge:IsTargetProfileCompact() and ClassForge:L("yes") or ClassForge:L("no"))
             .. " |cff808080-|r " .. ClassForge:L("group_colors") .. ": " .. (ClassForge:IsGroupFrameColoringEnabled() and ClassForge:L("on") or ClassForge:L("off"))
+            .. " |cff808080-|r " .. ClassForge:L("auto_class_low_level") .. ": " .. (ClassForge:IsAutoClassEnabled() and ClassForge:L("on") or ClassForge:L("off"))
             .. " |cff808080-|r " .. ClassForge:L("realm_aware_names") .. ": " .. (ClassForge:IsRealmAwareEnabled() and ClassForge:L("on") or ClassForge:L("off")))
         meterStatus:SetText(
             ClassForge:L("meter_box") .. ": " .. (ClassForge:IsMeterEnabled() and ClassForge:L("shown") or ClassForge:L("hidden"))
@@ -1208,6 +1239,7 @@ function ClassForge:CreateOptionsPanel()
         _G[realmToggle:GetName() .. "Text"]:SetText(ClassForge:L("use_realm_aware"))
         _G[autoWhoLoginToggle:GetName() .. "Text"]:SetText(ClassForge:L("auto_who_login"))
         _G[autoWhoGroupToggle:GetName() .. "Text"]:SetText(ClassForge:L("auto_who_group"))
+        _G[autoClassToggle:GetName() .. "Text"]:SetText(ClassForge:L("auto_class_low_level"))
         _G[panelVisibleToggle:GetName() .. "Text"]:SetText(ClassForge:L("show_target_panel"))
         _G[panelLockToggle:GetName() .. "Text"]:SetText(ClassForge:L("lock_target_panel"))
         _G[panelCompactToggle:GetName() .. "Text"]:SetText(ClassForge:L("compact_target_panel"))
@@ -1253,6 +1285,7 @@ function ClassForge:CreateOptionsPanel()
         realmToggle:SetChecked(ClassForge:IsRealmAwareEnabled())
         autoWhoLoginToggle:SetChecked(ClassForge:IsAutoWhoOnLoginEnabled())
         autoWhoGroupToggle:SetChecked(ClassForge:IsAutoWhoOnGroupEnabled())
+        autoClassToggle:SetChecked(ClassForge:IsAutoClassEnabled())
         panelVisibleToggle:SetChecked(not ClassForge:IsTargetProfileHidden())
         panelLockToggle:SetChecked(ClassForge:IsTargetProfileLocked())
         panelCompactToggle:SetChecked(ClassForge:IsTargetProfileCompact())
