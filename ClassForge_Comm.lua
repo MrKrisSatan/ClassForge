@@ -14,12 +14,14 @@ end
 
 function ClassForge:SerializeData(data)
     return table.concat({
-        "CF3",
+        "CF4",
         encodeField(self.version or "1.0.0"),
         encodeField(data.className or ""),
+        encodeField(data.description or ""),
         encodeField(self:SanitizeHex(data.color) or self.defaults.character.color),
         encodeField(self:NormalizeRole(data.role) or self.defaults.character.role),
         encodeField(self:NormalizeFaction(data.faction)),
+        encodeField(data.topSpells or ""),
     }, "|")
 end
 
@@ -80,15 +82,31 @@ function ClassForge:DeserializeData(message)
         return nil
     end
 
-    local protocol, addonVersion, className, color, role, faction = strsplit("|", message)
+    local protocol, addonVersion, className, description, color, role, faction, topSpells = strsplit("|", message)
+
+    if protocol == "CF4" then
+        return {
+            addonVersion = decodeField(addonVersion),
+            className = decodeField(className),
+            description = decodeField(description),
+            color = decodeField(color),
+            role = decodeField(role),
+            faction = decodeField(faction),
+            topSpells = decodeField(topSpells),
+            updated = time(),
+            source = "addon",
+        }
+    end
 
     if protocol == "CF3" then
         return {
             addonVersion = decodeField(addonVersion),
             className = decodeField(className),
+            description = "",
             color = decodeField(color),
             role = decodeField(role),
             faction = decodeField(faction),
+            topSpells = "",
             updated = time(),
             source = "addon",
         }
@@ -98,9 +116,11 @@ function ClassForge:DeserializeData(message)
         return {
             addonVersion = decodeField(addonVersion),
             className = decodeField(className),
+            description = "",
             color = decodeField(color),
             role = decodeField(role),
             faction = "",
+            topSpells = "",
             updated = time(),
             source = "addon",
         }
@@ -110,9 +130,11 @@ function ClassForge:DeserializeData(message)
         return {
             addonVersion = "1.0.0",
             className = decodeField(addonVersion),
+            description = "",
             color = decodeField(className),
             role = decodeField(color),
             faction = "",
+            topSpells = "",
             updated = time(),
             source = "addon",
         }

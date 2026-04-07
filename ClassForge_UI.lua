@@ -397,6 +397,36 @@ function ClassForge:CreateOptionsPanel()
     factionValue:SetWidth(220)
     factionValue:SetJustifyH("LEFT")
 
+    local descriptionLabel = overview:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    descriptionLabel:SetPoint("TOPLEFT", 360, -110)
+    descriptionLabel:SetText(ClassForge:L("class_description"))
+
+    local descriptionScroll = CreateFrame("ScrollFrame", "ClassForgeDescriptionScroll", overview, "UIPanelScrollFrameTemplate")
+    descriptionScroll:SetPoint("TOPLEFT", descriptionLabel, "BOTTOMLEFT", 0, -6)
+    descriptionScroll:SetWidth(250)
+    descriptionScroll:SetHeight(96)
+    descriptionScroll:SetBackdrop({
+        bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true,
+        tileSize = 16,
+        edgeSize = 12,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    descriptionScroll:SetBackdropColor(0, 0, 0, 0.45)
+
+    local descriptionBox = CreateFrame("EditBox", "ClassForgeDescriptionEditBox", descriptionScroll)
+    descriptionBox:SetMultiLine(true)
+    descriptionBox:SetFontObject(ChatFontNormal)
+    descriptionBox:SetAutoFocus(false)
+    descriptionBox:SetWidth(226)
+    descriptionBox:SetTextInsets(4, 4, 4, 4)
+    descriptionBox:SetScript("OnTextChanged", function()
+        descriptionScroll:UpdateScrollChildRect()
+        updatePreview()
+    end)
+    descriptionScroll:SetScrollChild(descriptionBox)
+
     local preview = overview:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     preview:SetPoint("TOPLEFT", 360, -28)
     preview:SetWidth(260)
@@ -415,6 +445,7 @@ function ClassForge:CreateOptionsPanel()
             color = ClassForge:SanitizeHex(colorBox:GetText()) or ClassForge.defaults.character.color,
             role = role,
             faction = ClassForge:GetUnitFaction("player"),
+            description = ClassForge:Trim(descriptionBox:GetText()),
         }
 
         preview:SetText(
@@ -425,6 +456,8 @@ function ClassForge:CreateOptionsPanel()
             .. ClassForge:L("role_label") .. ": " .. ClassForge:GetRoleDisplayText(data.role)
             .. "\n"
             .. ClassForge:L("faction_label") .. ": " .. ClassForge:GetFactionText(data)
+            .. "\n"
+            .. (data.description ~= "" and data.description or "")
         )
     end
 
@@ -502,6 +535,7 @@ function ClassForge:CreateOptionsPanel()
         local characterProfile = ClassForge:GetCharacterProfile()
         characterProfile.className = className ~= "" and className or ClassForge.defaults.character.className
         characterProfile.color = color or ClassForge.defaults.character.color
+        characterProfile.description = ClassForge:Trim(descriptionBox:GetText())
 
         ClassForge:RefreshPlayerCache()
         ClassForge:BroadcastStartup()
@@ -527,6 +561,7 @@ function ClassForge:CreateOptionsPanel()
     resetButton:SetScript("OnClick", function()
         classBox:SetText(ClassForge.defaults.character.className)
         colorBox:SetText(ClassForge.defaults.character.color)
+        descriptionBox:SetText(ClassForge.defaults.character.description or "")
         refreshRoleValue()
         factionValue:SetText(ClassForge:GetFactionText(ClassForge:BuildProfileData()))
         updatePreview()
@@ -1030,6 +1065,7 @@ function ClassForge:CreateOptionsPanel()
         tabs.cache:SetText(ClassForge:L("cache_tab"))
         tabs.meter:SetText(ClassForge:L("meter_tab"))
         classBox.label:SetText(ClassForge:L("custom_class_name"))
+        descriptionLabel:SetText(ClassForge:L("class_description"))
         colorBox.label:SetText(ClassForge:L("class_color_hex"))
         meterRowsBox.label:SetText(ClassForge:L("meter_max_rows"))
         meterExportLabel:SetText(ClassForge:L("meter_export_target"))
@@ -1094,6 +1130,7 @@ function ClassForge:CreateOptionsPanel()
         local characterProfile = ClassForge:GetCharacterProfile()
         classBox:SetText(characterProfile.className or ClassForge.defaults.character.className)
         colorBox:SetText(characterProfile.color or ClassForge.defaults.character.color)
+        descriptionBox:SetText(characterProfile.description or "")
         refreshRoleValue()
         setSelectedLanguage(profile.locale or ClassForge:GetLanguage(), true)
         factionValue:SetText(ClassForge:GetFactionText(ClassForge:BuildProfileData()))

@@ -647,6 +647,20 @@ function ClassForge:MigrateDatabase()
         version = 5
     end
 
+    if version < 8 then
+        for _, characterData in pairs(ClassForgeDB.characters) do
+            if type(characterData) == "table" then
+                if characterData.description == nil then
+                    characterData.description = ""
+                end
+                if type(characterData.spellHistory) ~= "table" then
+                    characterData.spellHistory = {}
+                end
+            end
+        end
+        version = 8
+    end
+
     local rebuiltCache = {}
 
     for key, data in pairs(ClassForgeCache) do
@@ -656,11 +670,13 @@ function ClassForge:MigrateDatabase()
             data.color = self:SanitizeHex(data.color) or self.defaults.character.color
             data.role = self:NormalizeRole(data.role) or self.defaults.character.role
             data.className = self:Trim(data.className) ~= "" and self:Trim(data.className) or self.defaults.character.className
+            data.description = self:Trim(data.description)
             data.faction = self:NormalizeFaction(data.faction)
             data.order = nil
             data.source = data.source or "observed"
             data.updated = tonumber(data.updated) or time()
             data.addonVersion = self:Trim(data.addonVersion)
+            data.topSpells = self:Trim(data.topSpells)
             rebuiltCache[self:GetPlayerKey(data.name or key) or key] = data
         end
     end
@@ -738,9 +754,11 @@ function ClassForge:SetDataForName(name, data)
     ClassForgeCache[key] = {
         name = normalized,
         className = self:Trim(data.className) ~= "" and self:Trim(data.className) or existing.className or self.defaults.character.className,
+        description = self:Trim(data.description) ~= "" and self:Trim(data.description) or existing.description or "",
         color = self:SanitizeHex(data.color) or existing.color or self.defaults.character.color,
         role = self:NormalizeRole(data.role) or existing.role or self.defaults.character.role,
         faction = self:NormalizeFaction(data.faction) ~= "" and self:NormalizeFaction(data.faction) or existing.faction or "",
+        topSpells = self:Trim(data.topSpells) ~= "" and self:Trim(data.topSpells) or existing.topSpells or "",
         addonVersion = self:Trim(data.addonVersion) ~= "" and self:Trim(data.addonVersion) or existing.addonVersion or "",
         updated = incomingUpdated,
         source = data.source or "observed",
@@ -781,22 +799,7 @@ function ClassForge:GuessClassToken(className)
 end
 
 function ClassForge:GuessRoleFromClass(className)
-    local token = self:GuessClassToken(className)
-
-    local fallbackByToken = {
-        DEATHKNIGHT = "Tank",
-        DRUID = "Tank",
-        HUNTER = "DPS",
-        MAGE = "DPS",
-        PALADIN = "Tank",
-        PRIEST = "Heal",
-        ROGUE = "DPS",
-        SHAMAN = "Heal",
-        WARLOCK = "DPS",
-        WARRIOR = "Tank",
-    }
-
-    return fallbackByToken[token] or "DPS"
+    return self.defaults.character.role or "DPS"
 end
 
 function ClassForge:GuessColorFromClass(className)

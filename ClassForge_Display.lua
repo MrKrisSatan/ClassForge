@@ -9,6 +9,7 @@ function ClassForge:InitDisplay()
     self:SetupMapMarkerTooltips()
     self:CreateMinimapButton()
     self:CreateCharacterPanel()
+    self:CreateCharacterDetailTab()
     self:CreateTargetClassTag()
     self:CreateTargetProfile()
     self:CreateMeterPanel()
@@ -324,7 +325,68 @@ function ClassForge:ResetMeterData()
         damageSpells = {},
         healingSpells = {},
     }
+    local characterProfile = self.GetCharacterProfile and self:GetCharacterProfile() or nil
+    if characterProfile then
+        characterProfile.spellHistory = {}
+    end
+    if self.RefreshPlayerCache then
+        self:RefreshPlayerCache()
+    end
     self:ResetMeterCombat()
+end
+
+function ClassForge:RecordPersistentSpellUsage(spellName, amount)
+    local cleanSpell = self:Trim(spellName)
+    local numericAmount = tonumber(amount) or 0
+    if cleanSpell == "" or numericAmount <= 0 then
+        return
+    end
+
+    local characterProfile = self.GetCharacterProfile and self:GetCharacterProfile() or nil
+    if not characterProfile then
+        return
+    end
+
+    characterProfile.spellHistory = type(characterProfile.spellHistory) == "table" and characterProfile.spellHistory or {}
+    characterProfile.spellHistory[cleanSpell] = (tonumber(characterProfile.spellHistory[cleanSpell]) or 0) + numericAmount
+end
+
+function ClassForge:GetPersistentTopSpellsSummary(limit)
+    local characterProfile = self.GetCharacterProfile and self:GetCharacterProfile() or nil
+    local history = characterProfile and characterProfile.spellHistory or nil
+    if type(history) ~= "table" then
+        return ""
+    end
+
+    local rows = {}
+    for spellName, amount in pairs(history) do
+        local numeric = tonumber(amount) or 0
+        if numeric > 0 then
+            rows[#rows + 1] = {
+                spell = spellName,
+                amount = numeric,
+            }
+        end
+    end
+
+    if #rows == 0 then
+        return ""
+    end
+
+    table.sort(rows, function(left, right)
+        if left.amount == right.amount then
+            return string.lower(left.spell or "") < string.lower(right.spell or "")
+        end
+        return left.amount > right.amount
+    end)
+
+    local parts = {}
+    local maxCount = math.min(limit or 5, #rows)
+    for index = 1, maxCount do
+        parts[#parts + 1] = string.format("%s (%d)", rows[index].spell, rows[index].amount)
+    end
+
+    return table.concat(parts, ", ")
 end
 
 function ClassForge:EnsureMeterCombatActive()
@@ -526,6 +588,7 @@ function ClassForge:RecordMeterDamage(sourceName, spellName, amount, sourceFlags
     applySpellStats(entrySpell)
     applySpellStats(combatSpell)
     applySpellStats(breakdownSpell)
+    self:RecordPersistentSpellUsage(spellKey, amount)
 
     local pending = self.pendingSpellDamage
     local playerGUID = UnitGUID and UnitGUID("player") or nil
@@ -547,6 +610,14 @@ function ClassForge:RecordMeterDamage(sourceName, spellName, amount, sourceFlags
                     break
                 end
             end
+        end
+    end
+
+    if playerName and ((playerGUID and sourceGUID and sourceGUID == playerGUID) or (sourceName and self:NormalizePlayerName(sourceName) == self:NormalizePlayerName(playerName))) then
+        local selfData = self:GetDataForName(playerName) or self:BuildProfileData()
+        if selfData then
+            selfData.topSpells = self:GetPersistentTopSpellsSummary(5)
+            self:SetDataForName(playerName, selfData)
         end
     end
 end
@@ -574,6 +645,7 @@ function ClassForge:RecordMeterHealing(sourceName, amount, sourceFlags, sourceGU
 
     entry.total = (entry.total or 0) + amount
     local spellKey = self:Trim(spellName) ~= "" and spellName or "Heal"
+    local entrySpell = self:GetOrCreateMeterSpellEntry(entry.spells, spellKey)
     local combatSpell = self:GetOrCreateMeterSpellEntry(combat.healingSpells, spellKey)
     local breakdownSpell = self:GetOrCreateMeterSpellEntry(self.meterState.breakdown.healingSpells, spellKey)
     local spellID = details and details.spellID or nil
@@ -600,13 +672,25 @@ function ClassForge:RecordMeterHealing(sourceName, amount, sourceFlags, sourceGU
         spellEntry.min = not spellEntry.min and amount or math.min(spellEntry.min, amount)
     end
 
+    applyHealingStats(entrySpell)
     applyHealingStats(combatSpell)
     applyHealingStats(breakdownSpell)
+    self:RecordPersistentSpellUsage(spellKey, amount)
 
     if destName then
         local receivedEntry = self:GetMeterEntry(combat.healingReceived, destName)
         if receivedEntry then
             receivedEntry.total = (receivedEntry.total or 0) + amount
+        end
+    end
+
+    local playerGUID = UnitGUID and UnitGUID("player") or nil
+    local playerName = UnitName("player")
+    if playerName and ((playerGUID and sourceGUID and sourceGUID == playerGUID) or (sourceName and self:NormalizePlayerName(sourceName) == self:NormalizePlayerName(playerName))) then
+        local selfData = self:GetDataForName(playerName) or self:BuildProfileData()
+        if selfData then
+            selfData.topSpells = self:GetPersistentTopSpellsSummary(5)
+            self:SetDataForName(playerName, selfData)
         end
     end
 end
@@ -672,6 +756,38 @@ function ClassForge:GetPlainMeterIdentityText(name)
     return displayName
 end
 
+function ClassForge:GetSpellIconMarkup(spellName, size)
+    local cleanSpell = self:Trim(spellName)
+    if cleanSpell == "" then
+        return ""
+    end
+
+    local icon
+    if cleanSpell == "Melee" or cleanSpell == "melee swing" then
+        icon = "Interface\\Icons\\Ability_MeleeDamage"
+    elseif GetSpellInfo then
+        local _, _, spellIcon = GetSpellInfo(cleanSpell)
+        icon = spellIcon
+    end
+
+    if not icon then
+        return ""
+    end
+
+    local iconSize = tonumber(size) or 14
+    return string.format("|T%s:%d:%d:0:0|t ", icon, iconSize, iconSize)
+end
+
+function ClassForge:GetIconizedSpellText(spellName, amount, size)
+    local cleanSpell = self:Trim(spellName)
+    if cleanSpell == "" then
+        return ""
+    end
+
+    local suffix = amount and string.format(" (%d)", tonumber(amount) or 0) or ""
+    return self:GetSpellIconMarkup(cleanSpell, size) .. cleanSpell .. suffix
+end
+
 function ClassForge:GetMeterTopSpellText()
     local combat = self.meterState and self.meterState.combat or nil
     local playerName = UnitName("player")
@@ -696,10 +812,10 @@ function ClassForge:GetMeterTopSpellText()
         return self:L("none")
     end
 
-    return string.format("%s (%d)", bestSpell, bestAmount or 0)
+    return self:GetIconizedSpellText(bestSpell, bestAmount or 0, 14)
 end
 
-function ClassForge:GetMeterTopSpellForName(name)
+function ClassForge:GetMeterTopSpellForName(name, plain)
     local combat = self.meterState and self.meterState.combat or nil
     local normalized = self:NormalizePlayerName(name)
     local entry = combat and combat.damage and normalized and combat.damage[normalized] or nil
@@ -720,7 +836,11 @@ function ClassForge:GetMeterTopSpellForName(name)
         return self:L("none")
     end
 
-    return string.format("%s (%d)", bestSpell, bestAmount or 0)
+    if plain then
+        return string.format("%s (%d)", bestSpell, bestAmount or 0)
+    end
+
+    return self:GetIconizedSpellText(bestSpell, bestAmount or 0, 14)
 end
 
 function ClassForge:GetMeterLeaderText(containerName, perSecond)
@@ -1039,7 +1159,7 @@ function ClassForge:BuildMeterExportLines()
         else
             parts[#parts + 1] = tostring(math.floor(((row.damage or 0) / duration) + 0.5))
             parts[#parts + 1] = tostring(row.damage or 0)
-            parts[#parts + 1] = self:GetMeterTopSpellForName(row.name)
+            parts[#parts + 1] = self:GetMeterTopSpellForName(row.name, true)
         end
         lines[#lines + 1] = table.concat(parts, " | ")
     end
@@ -1047,18 +1167,32 @@ function ClassForge:BuildMeterExportLines()
     return lines
 end
 
-function ClassForge:GetSpellBreakdownData(mode)
+function ClassForge:GetSpellBreakdownData(mode, scope)
     local breakdown = self.meterState and self.meterState.breakdown or nil
+    local combat = self.meterState and self.meterState.combat or nil
     local source = nil
     local total = 0
     local rows = {}
+    local selectedScope = scope or "personal"
 
-    if breakdown then
-        if mode == "healing" then
-            source = breakdown.healingSpells
-        else
-            source = breakdown.damageSpells
+    if selectedScope == "group" then
+        if breakdown then
+            if mode == "healing" then
+                source = breakdown.healingSpells
+            else
+                source = breakdown.damageSpells
+            end
         end
+    elseif combat then
+        local playerName = UnitName("player")
+        local normalized = playerName and self:NormalizePlayerName(playerName) or nil
+        local playerEntry = nil
+        if mode == "healing" then
+            playerEntry = combat.healing and normalized and combat.healing[normalized] or nil
+        else
+            playerEntry = combat.damage and normalized and combat.damage[normalized] or nil
+        end
+        source = playerEntry and playerEntry.spells or nil
     end
 
     for spellName, amount in pairs(source or {}) do
@@ -1238,6 +1372,7 @@ function ClassForge:CreateSpellBreakdownWindow()
     end)
     frame:Hide()
     frame.mode = "damage"
+    frame.scope = "personal"
 
     frame.title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     frame.title:SetPoint("TOPLEFT", 12, -10)
@@ -1260,6 +1395,26 @@ function ClassForge:CreateSpellBreakdownWindow()
     frame.healingButton:SetPoint("LEFT", frame.damageButton, "RIGHT", 6, 0)
     frame.healingButton:SetScript("OnClick", function()
         frame.mode = "healing"
+        ClassForge:UpdateSpellBreakdownWindow()
+    end)
+
+    frame.personalButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    frame.personalButton:SetWidth(70)
+    frame.personalButton:SetHeight(20)
+    frame.personalButton:SetPoint("LEFT", frame.healingButton, "RIGHT", 12, 0)
+    frame.personalButton:SetScript("OnClick", function()
+        frame.scope = "personal"
+        frame.selectedSpell = nil
+        ClassForge:UpdateSpellBreakdownWindow()
+    end)
+
+    frame.groupButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    frame.groupButton:SetWidth(70)
+    frame.groupButton:SetHeight(20)
+    frame.groupButton:SetPoint("LEFT", frame.personalButton, "RIGHT", 6, 0)
+    frame.groupButton:SetScript("OnClick", function()
+        frame.scope = "group"
+        frame.selectedSpell = nil
         ClassForge:UpdateSpellBreakdownWindow()
     end)
 
@@ -1366,12 +1521,17 @@ function ClassForge:UpdateSpellBreakdownWindow()
     end
 
     local mode = frame.mode or "damage"
-    local spells, total = self:GetSpellBreakdownData(mode)
+    local scope = frame.scope or "personal"
+    local spells, total = self:GetSpellBreakdownData(mode, scope)
     frame.title:SetText(self:L("meter_breakdown"))
     frame.damageButton:SetText(self:L("meter_damage_spells"))
     frame.healingButton:SetText(self:L("meter_healing_spells"))
+    frame.personalButton:SetText(self:L("meter_personal"))
+    frame.groupButton:SetText(self:L("meter_group"))
     frame.damageButton:SetEnabled(mode ~= "damage")
     frame.healingButton:SetEnabled(mode ~= "healing")
+    frame.personalButton:SetEnabled(scope ~= "personal")
+    frame.groupButton:SetEnabled(scope ~= "group")
     frame.totalText:SetText(string.format("%s\n%d", self:L(mode == "healing" and "meter_healing_spells" or "meter_damage_spells"), total or 0))
 
     local lines = {}
@@ -1393,7 +1553,7 @@ function ClassForge:UpdateSpellBreakdownWindow()
                 end
             end
             if #filtered > 0 then
-                lines[#lines + 1] = "|cff80d0ff" .. selectedSpell .. "|r"
+                lines[#lines + 1] = self:GetSpellIconMarkup(selectedSpell, 14) .. "|cff80d0ff" .. selectedSpell .. "|r"
                 lines[#lines + 1] = "|cff808080" .. self:L("meter_filter_clear") .. "|r"
                 lines[#lines + 1] = " "
             else
@@ -1424,7 +1584,7 @@ function ClassForge:UpdateSpellBreakdownWindow()
 
             local statText = #stats > 0 and (" |cff808080-|r " .. table.concat(stats, " |cff808080/|r ")) or ""
             if not frame.selectedSpell or frame.selectedSpell == entry.spell then
-                lines[#lines + 1] = string.format("|cff%s%s|r |cff808080-|r %d |cff808080-|r %.1f%%%s", colorHex, entry.spell, entry.amount, percent, statText)
+                lines[#lines + 1] = string.format("%s|cff%s%s|r |cff808080-|r %d |cff808080-|r %.1f%%%s", self:GetSpellIconMarkup(entry.spell, 14), colorHex, entry.spell, entry.amount, percent, statText)
             end
 
             local startAngle = currentAngle
@@ -2850,6 +3010,205 @@ function ClassForge:UpdateCharacterPanel()
     local factionText = self:GetFactionText(data)
 
     PaperDollFrame.ClassForgeInfo:SetText(self:GetColoredClassText(data) .. " |cff808080(|r" .. roleText .. " |cff808080-|r " .. factionText .. "|cff808080)|r")
+    self:UpdateCharacterDetailTabVisibility()
+    self:UpdateCharacterDetailPanel()
+end
+
+function ClassForge:SetCharacterTabSelected(selected)
+    if not self.characterDetailTabButton or not self.characterDetailPanel then
+        return
+    end
+
+    self.characterTabSelected = selected and true or false
+
+    if self.characterTabSelected then
+        if PaperDollFrame and PaperDollFrame.ClassForgeInfo then
+            PaperDollFrame.ClassForgeInfo:Hide()
+        end
+        self.characterDetailPanel:Show()
+    else
+        self.characterDetailPanel:Hide()
+        if PaperDollFrame and PaperDollFrame.ClassForgeInfo then
+            PaperDollFrame.ClassForgeInfo:Show()
+        end
+    end
+
+    self.characterDetailTabButton:SetButtonState(self.characterTabSelected and "PUSHED" or "NORMAL")
+    self.characterDetailTabButton:SetText(self:L("class_info_tab"))
+end
+
+function ClassForge:UpdateCharacterDetailTabVisibility()
+    if not self.characterDetailTabButton then
+        return
+    end
+
+    self.characterDetailTabButton:ClearAllPoints()
+    if CharacterFrame then
+        self.characterDetailTabButton:SetPoint("TOPLEFT", CharacterFrame, "TOPRIGHT", -48, -42)
+        self.characterDetailTabButton:SetWidth(96)
+        self.characterDetailTabButton:SetHeight(24)
+    end
+
+    local showingCharacter = CharacterFrame and CharacterFrame:IsShown()
+    if showingCharacter then
+        self.characterDetailTabButton:Show()
+        if self.characterTabSelected then
+            self.characterDetailPanel:Show()
+        end
+    else
+        self.characterDetailTabButton:Hide()
+        if self.characterDetailPanel then
+            self.characterDetailPanel:Hide()
+        end
+    end
+end
+
+function ClassForge:CreateCharacterDetailTab()
+    if self.characterDetailPanel then
+        return
+    end
+
+    if not CharacterFrame or not PaperDollFrame then
+        return
+    end
+
+    local tab = CreateFrame("Button", "ClassForgeCharacterTabButton", CharacterFrame, "UIPanelButtonTemplate")
+    tab:SetWidth(96)
+    tab:SetHeight(24)
+    tab:SetPoint("TOPLEFT", CharacterFrame, "TOPRIGHT", -48, -42)
+    tab:SetText(self:L("class_info_tab"))
+    tab:SetScript("OnClick", function()
+        ClassForge:SetCharacterTabSelected(not ClassForge.characterTabSelected)
+        ClassForge:UpdateCharacterDetailPanel()
+    end)
+
+    local panel = CreateFrame("Frame", "ClassForgeCharacterDetailPanel", CharacterFrame)
+    panel:SetPoint("TOPLEFT", CharacterFrame, "TOPLEFT", 30, -74)
+    panel:SetPoint("BOTTOMRIGHT", CharacterFrame, "BOTTOMRIGHT", -32, 36)
+    panel:SetFrameStrata(CharacterFrame:GetFrameStrata())
+    panel:SetFrameLevel(CharacterFrame:GetFrameLevel() + 20)
+    panel:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true,
+        tileSize = 16,
+        edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 },
+    })
+    panel:SetBackdropColor(0.05, 0.05, 0.05, 1)
+    panel:Hide()
+    panel:EnableMouse(true)
+
+    panel.background = panel:CreateTexture(nil, "BACKGROUND")
+    panel.background:SetAllPoints(panel)
+    panel.background:SetTexture(0.08, 0.08, 0.08, 1)
+    panel.background:SetVertexColor(0.18, 0.18, 0.18, 1)
+
+    local scroll = CreateFrame("ScrollFrame", "ClassForgeCharacterDetailScroll", panel, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 12, -12)
+    scroll:SetPoint("BOTTOMRIGHT", -28, 12)
+
+    local content = CreateFrame("Frame", nil, scroll)
+    content:SetWidth(255)
+    content:SetHeight(320)
+    scroll:SetScrollChild(content)
+
+    content.classText = content:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    content.classText:SetPoint("TOPLEFT", 0, 0)
+    content.classText:SetWidth(250)
+    content.classText:SetJustifyH("LEFT")
+
+    content.roleText = content:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    content.roleText:SetPoint("TOPLEFT", content.classText, "BOTTOMLEFT", 0, -10)
+    content.roleText:SetWidth(250)
+    content.roleText:SetJustifyH("LEFT")
+
+    content.descriptionLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    content.descriptionLabel:SetPoint("TOPLEFT", content.roleText, "BOTTOMLEFT", 0, -14)
+    content.descriptionLabel:SetWidth(250)
+    content.descriptionLabel:SetJustifyH("LEFT")
+
+    content.descriptionText = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    content.descriptionText:SetPoint("TOPLEFT", content.descriptionLabel, "BOTTOMLEFT", 0, -6)
+    content.descriptionText:SetWidth(250)
+    content.descriptionText:SetJustifyH("LEFT")
+    content.descriptionText:SetJustifyV("TOP")
+
+    content.spellsLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    content.spellsLabel:SetWidth(250)
+    content.spellsLabel:SetJustifyH("LEFT")
+
+    content.spellsText = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    content.spellsText:SetWidth(250)
+    content.spellsText:SetJustifyH("LEFT")
+    content.spellsText:SetJustifyV("TOP")
+
+    panel.scroll = scroll
+    panel.content = content
+    self.characterDetailTabButton = tab
+    self.characterDetailPanel = panel
+    self.characterTabSelected = false
+
+    if CharacterFrame then
+        CharacterFrame:HookScript("OnShow", function()
+            ClassForge:UpdateCharacterDetailTabVisibility()
+            ClassForge:UpdateCharacterDetailPanel()
+        end)
+        CharacterFrame:HookScript("OnHide", function()
+            ClassForge:SetCharacterTabSelected(false)
+        end)
+    end
+
+    if CharacterFrame_ShowSubFrame then
+        hooksecurefunc("CharacterFrame_ShowSubFrame", function(frameName)
+            ClassForge:UpdateCharacterDetailTabVisibility()
+            if not ClassForge.characterDetailPanel then
+                return
+            end
+            if frameName ~= ClassForge.characterDetailPanel:GetName() then
+                ClassForge:SetCharacterTabSelected(false)
+            end
+        end)
+    end
+
+    self:UpdateCharacterDetailTabVisibility()
+end
+
+function ClassForge:UpdateCharacterDetailPanel()
+    if not self.characterDetailPanel then
+        return
+    end
+
+    if not CharacterFrame or not CharacterFrame:IsShown() then
+        self.characterDetailPanel:Hide()
+        return
+    end
+
+    if self.characterDetailTabButton then
+        self.characterDetailTabButton:SetText(self:L("class_info_tab"))
+    end
+
+    local data = self:BuildProfileData()
+    if not self.characterTabSelected then
+        self.characterDetailPanel:Hide()
+        return
+    end
+
+    local content = self.characterDetailPanel.content
+    local description = self:Trim(data.description)
+    local factionText = self:GetFactionText(data)
+    content.classText:SetText(self:L("class_label") .. ": " .. self:GetColoredClassText(data))
+    content.roleText:SetText(self:L("role_label") .. ": " .. self:GetRoleDisplayText(data.role) .. " |cff808080-|r " .. self:L("faction_label") .. ": " .. factionText)
+    content.descriptionLabel:SetText(self:L("inspect_description"))
+    content.descriptionText:SetText(description ~= "" and description or self:L("none"))
+    content.spellsLabel:SetPoint("TOPLEFT", content.descriptionText, "BOTTOMLEFT", 0, -14)
+    content.spellsLabel:SetText(self:L("inspect_spells"))
+    content.spellsText:SetPoint("TOPLEFT", content.spellsLabel, "BOTTOMLEFT", 0, -6)
+    content.spellsText:SetText(self:GetInspectSpellText(data))
+    local descriptionBottom = content.descriptionText:GetStringHeight() or 0
+    local spellsBottom = content.spellsText:GetStringHeight() or 0
+    content:SetHeight(math.max(260, 72 + descriptionBottom + 34 + spellsBottom))
+    self.characterDetailPanel:Show()
 end
 
 function ClassForge:CreateTargetClassTag()
@@ -2999,6 +3358,161 @@ function ClassForge:UpdateTargetProfile()
     self.targetProfile:Show()
 end
 
+function ClassForge:GetInspectUnit()
+    if InspectFrame and InspectFrame.unit and UnitExists(InspectFrame.unit) then
+        return InspectFrame.unit
+    end
+
+    if UnitExists("target") and UnitIsPlayer("target") then
+        return "target"
+    end
+
+    return nil
+end
+
+function ClassForge:GetInspectData()
+    local unit = self:GetInspectUnit()
+    local name = unit and UnitName(unit) or nil
+    local data = name and self:GetDataForName(name) or nil
+    return data, unit, name
+end
+
+function ClassForge:GetInspectSpellText(data)
+    local topSpells = data and self:Trim(data.topSpells) or ""
+    if topSpells == "" then
+        return self:L("meter_no_spells")
+    end
+
+    local lines = {}
+    for entry in string.gmatch(topSpells, "([^,]+)") do
+        local cleanEntry = self:Trim(entry)
+        local spellName, amount = string.match(cleanEntry, "^(.-)%s*%((%d+)%)$")
+        spellName = self:Trim(spellName or cleanEntry)
+        amount = tonumber(amount)
+        if spellName ~= "" then
+            lines[#lines + 1] = self:GetIconizedSpellText(spellName, amount, 14)
+        end
+    end
+
+    if #lines == 0 then
+        return self:L("meter_no_spells")
+    end
+
+    return table.concat(lines, "\n")
+end
+
+function ClassForge:SetInspectTabSelected(selected)
+    if not self.inspectTabButton or not self.inspectDetailPanel then
+        return
+    end
+
+    self.inspectTabSelected = selected and true or false
+    if self.inspectTabSelected then
+        self.inspectDetailPanel:Show()
+    else
+        self.inspectDetailPanel:Hide()
+    end
+
+    if InspectPaperDollItemsFrame then
+        if self.inspectTabSelected then
+            InspectPaperDollItemsFrame:Hide()
+        else
+            InspectPaperDollItemsFrame:Show()
+        end
+    end
+
+    if InspectPaperDollFrame and InspectPaperDollFrame.ClassForgeInfo then
+        if self.inspectTabSelected then
+            InspectPaperDollFrame.ClassForgeInfo:Hide()
+        else
+            InspectPaperDollFrame.ClassForgeInfo:Show()
+        end
+    end
+
+    self.inspectTabButton:SetAlpha(self.inspectTabSelected and 1 or 0.8)
+    self.inspectTabButton:SetText(self:L("class_info_tab"))
+end
+
+function ClassForge:CreateInspectDetailPanel()
+    if self.inspectDetailPanel or not InspectPaperDollFrame then
+        return
+    end
+
+    local tabParent = InspectFrame or InspectPaperDollFrame
+    local tab = CreateFrame("Button", "ClassForgeInspectTabButton", tabParent, "UIPanelButtonTemplate")
+    tab:SetWidth(96)
+    tab:SetHeight(24)
+    if InspectFrame then
+        tab:SetPoint("TOPLEFT", InspectFrame, "TOPRIGHT", -48, -42)
+    else
+        tab:SetPoint("TOPLEFT", InspectPaperDollFrame, "TOPRIGHT", -48, -42)
+    end
+    tab:SetText(self:L("class_info_tab"))
+    tab:SetScript("OnClick", function()
+        ClassForge:SetInspectTabSelected(not ClassForge.inspectTabSelected)
+        ClassForge:UpdateInspectFrame()
+    end)
+
+    local panel = CreateFrame("Frame", "ClassForgeInspectDetailPanel", InspectPaperDollFrame)
+    panel:SetPoint("TOPLEFT", 12, -58)
+    panel:SetPoint("BOTTOMRIGHT", -28, 12)
+    panel:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true,
+        tileSize = 16,
+        edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 },
+    })
+    panel:SetBackdropColor(0, 0, 0, 0.85)
+    panel:Hide()
+
+    local scroll = CreateFrame("ScrollFrame", "ClassForgeInspectDetailScroll", panel, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 10, -10)
+    scroll:SetPoint("BOTTOMRIGHT", -28, 10)
+
+    local content = CreateFrame("Frame", nil, scroll)
+    content:SetWidth(255)
+    content:SetHeight(320)
+    scroll:SetScrollChild(content)
+
+    content.classText = content:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    content.classText:SetPoint("TOPLEFT", 0, 0)
+    content.classText:SetWidth(250)
+    content.classText:SetJustifyH("LEFT")
+
+    content.roleText = content:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    content.roleText:SetPoint("TOPLEFT", content.classText, "BOTTOMLEFT", 0, -10)
+    content.roleText:SetWidth(250)
+    content.roleText:SetJustifyH("LEFT")
+
+    content.descriptionLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    content.descriptionLabel:SetPoint("TOPLEFT", content.roleText, "BOTTOMLEFT", 0, -14)
+    content.descriptionLabel:SetWidth(250)
+    content.descriptionLabel:SetJustifyH("LEFT")
+
+    content.descriptionText = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    content.descriptionText:SetPoint("TOPLEFT", content.descriptionLabel, "BOTTOMLEFT", 0, -6)
+    content.descriptionText:SetWidth(250)
+    content.descriptionText:SetJustifyH("LEFT")
+    content.descriptionText:SetJustifyV("TOP")
+
+    content.spellsLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    content.spellsLabel:SetWidth(250)
+    content.spellsLabel:SetJustifyH("LEFT")
+
+    content.spellsText = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    content.spellsText:SetWidth(250)
+    content.spellsText:SetJustifyH("LEFT")
+    content.spellsText:SetJustifyV("TOP")
+
+    panel.scroll = scroll
+    panel.content = content
+    self.inspectTabButton = tab
+    self.inspectDetailPanel = panel
+    self.inspectTabSelected = false
+end
+
 function ClassForge:SetupInspectHooks()
     if self.inspectHooked then
         return
@@ -3020,10 +3534,20 @@ function ClassForge:SetupInspectHooks()
     text:SetJustifyH("CENTER")
     text:SetWidth(220)
     InspectPaperDollFrame.ClassForgeInfo = text
+    self:CreateInspectDetailPanel()
 
     hooksecurefunc("InspectPaperDollFrame_SetLevel", function()
         ClassForge:UpdateInspectFrame()
     end)
+
+    if InspectFrame then
+        InspectFrame:HookScript("OnShow", function()
+            ClassForge:UpdateInspectFrame()
+        end)
+        InspectFrame:HookScript("OnHide", function()
+            ClassForge:SetInspectTabSelected(false)
+        end)
+    end
 end
 
 function ClassForge:UpdateInspectFrame()
@@ -3033,17 +3557,58 @@ function ClassForge:UpdateInspectFrame()
 
     if not InspectFrame or not InspectFrame:IsShown() then
         InspectPaperDollFrame.ClassForgeInfo:SetText("")
+        if self.inspectDetailPanel then
+            self.inspectDetailPanel:Hide()
+        end
         return
     end
 
-    local name = UnitName("target")
-    local data = name and self:GetDataForName(name) or nil
+    if self.inspectTabButton then
+        self.inspectTabButton:SetText(self:L("class_info_tab"))
+    end
+
+    local data = self:GetInspectData()
 
     if not data then
         InspectPaperDollFrame.ClassForgeInfo:SetText("")
+        if self.inspectDetailPanel and self.inspectTabSelected then
+            self.inspectDetailPanel:Show()
+            local content = self.inspectDetailPanel.content
+            content.classText:SetText(self:L("class_label") .. ": " .. self:GetColoredClassText({
+                className = "Hero",
+                color = self.defaults.character.color,
+            }))
+            content.roleText:SetText("")
+            content.descriptionLabel:SetText(self:L("inspect_description"))
+            content.descriptionText:SetText("The Hero is a rare anomaly whispered of across Azeroth, from the war-torn fields of Eastern Kingdoms to the shattered wilds of Kalimdor.")
+            content.spellsLabel:SetPoint("TOPLEFT", content.descriptionText, "BOTTOMLEFT", 0, -14)
+            content.spellsLabel:SetText("")
+            content.spellsText:SetPoint("TOPLEFT", content.spellsLabel, "BOTTOMLEFT", 0, -6)
+            content.spellsText:SetText("")
+            content:SetHeight(260)
+        end
         return
     end
 
     local factionText = self:GetFactionText(data)
     InspectPaperDollFrame.ClassForgeInfo:SetText(self:GetColoredClassText(data) .. " |cff808080(|r" .. self:GetRoleDisplayText(data.role) .. " |cff808080-|r " .. factionText .. " |cff808080-|r " .. self:GetSourceLabel(data) .. " |cff808080-|r " .. self:FormatUpdatedTimeColored(data.updated) .. "|cff808080)|r")
+
+    if self.inspectDetailPanel and self.inspectTabSelected then
+        local content = self.inspectDetailPanel.content
+        local description = self:Trim(data.description)
+        content.classText:SetText(self:L("class_label") .. ": " .. self:GetColoredClassText(data))
+        content.roleText:SetText(self:L("role_label") .. ": " .. self:GetRoleDisplayText(data.role) .. " |cff808080-|r " .. self:L("faction_label") .. ": " .. factionText)
+        content.descriptionLabel:SetText(self:L("inspect_description"))
+        content.descriptionText:SetText(description ~= "" and description or self:L("none"))
+        content.spellsLabel:SetPoint("TOPLEFT", content.descriptionText, "BOTTOMLEFT", 0, -14)
+        content.spellsLabel:SetText(self:L("inspect_spells"))
+        content.spellsText:SetPoint("TOPLEFT", content.spellsLabel, "BOTTOMLEFT", 0, -6)
+        content.spellsText:SetText(self:GetInspectSpellText(data))
+        local descriptionBottom = content.descriptionText:GetStringHeight() or 0
+        local spellsBottom = content.spellsText:GetStringHeight() or 0
+        content:SetHeight(math.max(260, 72 + descriptionBottom + 34 + spellsBottom))
+        self.inspectDetailPanel:Show()
+    elseif self.inspectDetailPanel then
+        self.inspectDetailPanel:Hide()
+    end
 end

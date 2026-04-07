@@ -2,8 +2,8 @@ ClassForge = ClassForge or {}
 
 ClassForge.name = "ClassForge"
 ClassForge.prefix = "CLASSFORGE"
-ClassForge.version = "3.5.3"
-ClassForge.dbVersion = 6
+ClassForge.version = "3.6.0"
+ClassForge.dbVersion = 8
 ClassForge.homepage = "https://github.com/MrKrisSatan/ClassForge"
 ClassForge.releasesPage = "https://github.com/MrKrisSatan/ClassForge/releases"
 
@@ -15,6 +15,8 @@ ClassForge.defaults = {
         className = "Hero",
         color = "FFD100",
         role = "DPS",
+        description = "",
+        spellHistory = {},
     },
     profile = {
         enabled = true,
@@ -140,12 +142,14 @@ ClassForge.translations = {
         display_tab = "Display",
         cache_tab = "Cache",
         meter_tab = "Meter",
+        class_info_tab = "Class Info",
         options_subtitle = "Custom class identities for Wrath 3.3.5a with sync, cache, and map support.",
         language = "Language",
         english = "English",
         spanish = "Spanish",
         russian = "Russian",
         custom_class_name = "Custom class name",
+        class_description = "Class description",
         class_color_hex = "Class color hex",
         presets = "Presets",
         pick = "Pick",
@@ -238,6 +242,11 @@ ClassForge.translations = {
         meter_breakdown = "Spell Breakdown",
         meter_damage_spells = "Damage Spells",
         meter_healing_spells = "Healing Spells",
+        meter_personal = "Personal",
+        meter_group = "Group",
+        inspect_tab = "ClassForge",
+        inspect_description = "Description",
+        inspect_spells = "Most used spells",
         meter_contribution = "Contribution",
         meter_no_spells = "No spell data yet.",
         meter_export_target = "Export target",
@@ -275,12 +284,14 @@ ClassForge.translations = {
         display_tab = "Pantalla",
         cache_tab = "Caché",
         meter_tab = "Medidor",
+        class_info_tab = "Info de clase",
         options_subtitle = "Identidades de clase personalizadas para Wrath 3.3.5a con sincronización, caché y soporte de mapa.",
         language = "Idioma",
         english = "Inglés",
         spanish = "Español",
         russian = "Ruso",
         custom_class_name = "Nombre de clase personalizado",
+        class_description = "Descripcion de clase",
         class_color_hex = "Hex de color de clase",
         presets = "Predefinidos",
         pick = "Elegir",
@@ -373,6 +384,11 @@ ClassForge.translations = {
         meter_breakdown = "Desglose de hechizos",
         meter_damage_spells = "Hechizos de daño",
         meter_healing_spells = "Hechizos de sanación",
+        meter_personal = "Personal",
+        meter_group = "Grupo",
+        inspect_tab = "ClassForge",
+        inspect_description = "Descripcion",
+        inspect_spells = "Hechizos mas usados",
         meter_contribution = "Contribución",
         meter_no_spells = "Aún no hay datos de hechizos.",
         meter_export_target = "Destino de exportación",
@@ -410,12 +426,14 @@ ClassForge.translations = {
         display_tab = "Отображение",
         cache_tab = "Кэш",
         meter_tab = "Метр",
+        class_info_tab = "Инфо класса",
         options_subtitle = "Пользовательские классы для Wrath 3.3.5a с синхронизацией, кэшем и поддержкой карты.",
         language = "Язык",
         english = "Английский",
         spanish = "Испанский",
         russian = "Русский",
         custom_class_name = "Пользовательское имя класса",
+        class_description = "Описание класса",
         class_color_hex = "Hex цвета класса",
         presets = "Пресеты",
         pick = "Выбрать",
@@ -508,6 +526,11 @@ ClassForge.translations = {
         meter_breakdown = "Разбор заклинаний",
         meter_damage_spells = "Заклинания урона",
         meter_healing_spells = "Заклинания лечения",
+        meter_personal = "Личное",
+        meter_group = "Группа",
+        inspect_tab = "ClassForge",
+        inspect_description = "Описание",
+        inspect_spells = "Частые заклинания",
         meter_contribution = "Вклад",
         meter_no_spells = "Пока нет данных по заклинаниям.",
         meter_export_target = "Куда экспортировать",
@@ -622,6 +645,7 @@ function ClassForge:EnsureCurrentCharacterProfile()
             characterProfile.className = self:Trim(characterProfile.className) ~= "" and characterProfile.className or (self:Trim(globalProfile.className) ~= "" and self:Trim(globalProfile.className) or self.defaults.character.className)
             characterProfile.color = self:SanitizeHex(characterProfile.color) or self:SanitizeHex(globalProfile.color) or self.defaults.character.color
             characterProfile.role = self:NormalizeRole(characterProfile.role) or self:NormalizeRole(globalProfile.role) or self.defaults.character.role
+            characterProfile.description = self:Trim(characterProfile.description) ~= "" and characterProfile.description or self:Trim(globalProfile.description)
         end
 
         characterProfile._migratedFromLegacy = true
@@ -635,9 +659,11 @@ function ClassForge:BuildProfileData()
 
     return {
         className = self:Trim(profile.className) ~= "" and self:Trim(profile.className) or self.defaults.character.className,
+        description = self:Trim(profile.description),
         color = self:SanitizeHex(profile.color) or self.defaults.character.color,
         role = self:GetCurrentRole(),
         faction = self:GetUnitFaction("player") or "",
+        topSpells = self.GetPersistentTopSpellsSummary and self:GetPersistentTopSpellsSummary(5) or "",
         addonVersion = self.version,
         updated = time(),
         source = "self",
