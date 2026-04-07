@@ -2,7 +2,7 @@ ClassForge = ClassForge or {}
 
 ClassForge.name = "ClassForge"
 ClassForge.prefix = "CLASSFORGE"
-ClassForge.version = "3.6.4"
+ClassForge.version = "3.6.5"
 ClassForge.dbVersion = 10
 ClassForge.homepage = "https://github.com/MrKrisSatan/ClassForge"
 ClassForge.releasesPage = "https://github.com/MrKrisSatan/ClassForge/releases"
@@ -1079,6 +1079,44 @@ function ClassForge:GetAutoClassPresetForKnownSpells(known)
     local fallbackPreset, fallbackScore = nil, 0
     local fallbackTieValue = -1
     local signature = self:GetKnownSpellSignature(known)
+    local bestCandidates = {}
+    local fallbackCandidates = {}
+
+    local function getSignatureHash(extra)
+        local value = 0
+        local text = signature .. "|" .. tostring(extra or "")
+        for index = 1, string.len(text) do
+            value = (value + string.byte(text, index) * (index + 11)) % 104729
+        end
+
+        return value
+    end
+
+    local function pickCandidate(candidates, topScore)
+        local closeCandidates = {}
+        for _, candidate in ipairs(candidates) do
+            if candidate.score >= math.max(1, topScore - 3) then
+                closeCandidates[#closeCandidates + 1] = candidate
+            end
+        end
+
+        if #closeCandidates == 0 then
+            return nil
+        end
+
+        table.sort(closeCandidates, function(left, right)
+            if left.score ~= right.score then
+                return left.score > right.score
+            end
+            if left.matchCount ~= right.matchCount then
+                return left.matchCount > right.matchCount
+            end
+            return left.tieValue > right.tieValue
+        end)
+
+        local pickIndex = (getSignatureHash(topScore) % #closeCandidates) + 1
+        return closeCandidates[pickIndex].preset
+    end
 
     for index, preset in ipairs(self.autoClassPresets or {}) do
         local matchesRequired = true
@@ -1135,6 +1173,15 @@ function ClassForge:GetAutoClassPresetForKnownSpells(known)
             tieValue = (tieValue + string.byte(tieSource, i) * i) % 9973
         end
 
+        if score > 0 then
+            fallbackCandidates[#fallbackCandidates + 1] = {
+                preset = preset,
+                score = score,
+                tieValue = tieValue,
+                matchCount = matchCount,
+            }
+        end
+
         if score > fallbackScore or (score == fallbackScore and score > 0 and tieValue > fallbackTieValue) then
             fallbackPreset = preset
             fallbackScore = score
@@ -1145,6 +1192,15 @@ function ClassForge:GetAutoClassPresetForKnownSpells(known)
             score = 0
         end
 
+        if score > 0 then
+            bestCandidates[#bestCandidates + 1] = {
+                preset = preset,
+                score = score,
+                tieValue = tieValue,
+                matchCount = matchCount,
+            }
+        end
+
         if score > bestScore or (score == bestScore and score > 0 and tieValue > bestTieValue) then
             bestPreset = preset
             bestScore = score
@@ -1153,11 +1209,11 @@ function ClassForge:GetAutoClassPresetForKnownSpells(known)
     end
 
     if bestScore > 0 then
-        return bestPreset
+        return pickCandidate(bestCandidates, bestScore) or bestPreset
     end
 
     if fallbackScore > 0 then
-        return fallbackPreset
+        return pickCandidate(fallbackCandidates, fallbackScore) or fallbackPreset
     end
 
     return self:GetDynamicAutoClassPreset(known)

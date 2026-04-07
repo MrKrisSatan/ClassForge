@@ -240,6 +240,18 @@ local generatedAutoClassThemes = {
     { suffix = "Wisdomtide", color = "20B2AA", spells = { "Seal of Wisdom", "Healing Wave", "Hand of Protection", "Mage Armor" }, description = "resourceful field healer who survives through wisdom, protection, and steady healing cadence." },
     { suffix = "Ironhowl", color = "C69B6D", spells = { "Heroic Strike", "Battle Shout", "Victory Rush", "Bloodrage" }, description = "stubborn weapon fighter who answers danger with rage, steel, and a refusal to step back." },
     { suffix = "Guardfang", color = "9ACD32", spells = { "Raptor Strike", "Evasion", "Aspect of the Monkey", "Demon Skin" }, description = "avoidance fighter who survives through animal reflexes, evasive movement, and close-range punishment." },
+    { suffix = "Blightspine", color = "556B2F", spells = { "Serpent Sting", "Corruption", "Curse of Agony", "Shadow Word: Pain" }, description = "attrition fighter who layers poison, pain, and rot until the enemy is losing to the wound itself." },
+    { suffix = "Frostfang", color = "AFEEEE", spells = { "Frostbolt", "Icy Touch", "Mongoose Bite", "Raptor Strike" }, description = "cold-biting skirmisher who slows the field and punishes anything that gets close enough to snap at." },
+    { suffix = "Dawnshield", color = "F48CBA", spells = { "Power Word: Shield", "Devotion Aura", "Divine Protection", "Holy Light" }, description = "radiant defender who turns protective magic into a steady wall of light and discipline." },
+    { suffix = "Hexflame", color = "9932CC", spells = { "Immolate", "Curse of Agony", "Fire Blast", "Shadow Bolt" }, description = "curse-flinger who braids fire and shadow into a spiteful, burning pressure pattern." },
+    { suffix = "Moonshot", color = "4169E1", spells = { "Moonfire", "Arcane Shot", "Auto Shot", "Wrath" }, description = "lunar marksman who fires from strange angles, mixing sky magic with clean ranged pressure." },
+    { suffix = "Plagueheart", color = "8B0000", spells = { "Plague Strike", "Blood Boil", "Death Coil", "Corruption" }, description = "disease-marked aggressor who lets blood, rot, and dark force do the heavy lifting." },
+    { suffix = "Tidecaller", color = "20B2AA", spells = { "Healing Wave", "Earth Shock", "Lightning Bolt", "Earthbind Totem" }, description = "elemental responder who shifts between recovery, shock pressure, and battlefield control." },
+    { suffix = "Spiritguard", color = "00FF98", spells = { "Renew", "Healing Touch", "Mark of the Wild", "Power Word: Fortitude" }, description = "supportive survivor who turns blessings, restoration, and resilience into a quiet advantage." },
+    { suffix = "Venomblade", color = "3B0A45", spells = { "Backstab", "Gouge", "Serpent Sting", "Shadow Word: Pain" }, description = "dirty close-range striker who mixes blades with lingering venom and cruel openings." },
+    { suffix = "Starweaver", color = "7DF9FF", spells = { "Arcane Missiles", "Moonfire", "Smite", "Lightning Bolt" }, description = "celestial caster who stitches several schools of magic into a bright and unstable pattern." },
+    { suffix = "Ashwarden", color = "A9A9A9", spells = { "Frost Armor", "Demon Skin", "Thorns", "Devotion Aura" }, description = "layered warder who survives through armor, skin, thorns, and stubborn defensive instincts." },
+    { suffix = "Deathmarch", color = "C41E3A", spells = { "Blood Presence", "Unholy Presence", "Death and Decay", "Blood Strike" }, description = "runic advance fighter who moves like a bad omen, carrying blood and decay into the front line." },
 }
 
 local generatedAutoClassForms = {
@@ -249,10 +261,151 @@ local generatedAutoClassForms = {
     { prefix = "Bulwark", spells = { "Righteous Fury", "Devotion Aura" }, description = "They are built to draw attention and stay upright while the field settles around them." },
     { prefix = "Mender", spells = { "Healing Wave", "Holy Light" }, description = "They lean toward recovery, turning a fragile roll into a surprisingly steady lifeline." },
     { prefix = "Preserver", spells = { "Rejuvenation", "Greater Heal" }, description = "They keep allies in the fight through patient restoration and one decisive answer to crisis." },
+    { prefix = "Reaver", spells = { "Blood Strike", "Heroic Strike" }, description = "They turn simple weapon pressure into a hard, forward-moving threat." },
+    { prefix = "Seer", spells = { "Mind Blast", "Lightning Bolt" }, description = "They read the opening through instinct and answer with sudden focused force." },
+    { prefix = "Ranger", spells = { "Auto Shot", "Hunter's Mark" }, description = "They prefer distance, marks, and a clear lane before the fight gets messy." },
+    { prefix = "Binder", spells = { "Entangling Roots", "Earthbind Totem" }, description = "They win space by making the battlefield itself refuse to cooperate." },
+    { prefix = "Warden", spells = { "Frost Armor", "Thorns" }, description = "They survive by making every hit against them cost something in return." },
+    { prefix = "Herald", spells = { "Battle Shout", "Blessing of Might" }, description = "They bring momentum before the first swing, turning confidence into pressure." },
+    { prefix = "Hexblade", spells = { "Corruption", "Backstab" }, description = "They blend cruel blade work with lingering magic that keeps hurting after the opening." },
+    { prefix = "Sentinel", spells = { "Aspect of the Hawk", "Devotion Aura" }, description = "They keep their posture, watch the field, and turn discipline into reliable pressure." },
+    { prefix = "Channeler", spells = { "Drain Soul", "Arcane Missiles" }, description = "They build power through sustained casting and opportunistic bursts." },
+    { prefix = "Harrier", spells = { "Concussive Shot", "Hamstring" }, description = "They specialize in making enemies slower, angrier, and easier to finish." },
+    { prefix = "Oracle", spells = { "Smite", "Moonfire" }, description = "They carry bright omens and sharper punishments in equal measure." },
+    { prefix = "Knight", spells = { "Seal of Righteousness", "Crusader Strike" }, description = "They turn conviction, seals, and close-range discipline into a focused charge." },
+    { prefix = "Adept", spells = { "Fire Blast", "Earth Shock" }, description = "They favor short, decisive bursts that punish a target before it can reset." },
+    { prefix = "Stalker", spells = { "Stealth", "Prowl" }, description = "They trust patience, positioning, and the first unfair second of a fight." },
 }
 
-for _, theme in ipairs(generatedAutoClassThemes) do
-    for _, form in ipairs(generatedAutoClassForms) do
+local dropdownAutoClassPresets = {
+    { name = "Death Knight", color = "C41E3A", spells = { "Blood Presence", "Icy Touch", "Plague Strike", "Death Coil", "Blood Strike", "Death and Decay" }, description = "A level-one death champion interpretation, the Death Knight turns blood, frost, plague, and dark force into an early omen of ruin." },
+    { name = "Demon Hunter", color = "A330C9", spells = { "Evasion", "Sprint", "Demon Skin", "Immolate", "Shadow Bolt", "Backstab" }, description = "A level-one demon hunter interpretation, the Demon Hunter reads like a scarred skirmisher using speed, fel-touched protection, and burning pressure." },
+    { name = "Druid", color = "FF7C0A", spells = { "Cat Form", "Moonfire", "Wrath", "Rejuvenation", "Mark of the Wild", "Entangling Roots" }, description = "A level-one druid interpretation, the Druid answers rerolls with nature magic, shifting instinct, healing, and roots." },
+    { name = "Evoker", color = "33937F", spells = { "Fireball", "Flame Shock", "Healing Wave", "Healing Touch", "Lightning Bolt", "Power Word: Shield" }, description = "A level-one evoker interpretation, the Evoker uses flame, breath-like bursts, preservation magic, and elemental flow as a draconic echo." },
+    { name = "Hunter", color = "AAD372", spells = { "Auto Shot", "Arcane Shot", "Hunter's Mark", "Serpent Sting", "Raptor Strike", "Mongoose Bite" }, description = "A level-one hunter interpretation, the Hunter turns marks, shots, stings, and survival instincts into a clean prey-tracking identity." },
+    { name = "Mage", color = "3FC7EB", spells = { "Frostbolt", "Fireball", "Arcane Missiles", "Fire Blast", "Frost Nova", "Arcane Intellect" }, description = "A level-one mage interpretation, the Mage forms when frost, fire, and arcane force dominate the reroll." },
+    { name = "Monk", color = "00FF98", spells = { "Battle Stance", "Mongoose Bite", "Evasion", "Healing Wave", "Renew", "Smite" }, description = "A level-one monk interpretation, the Monk is treated as discipline in motion: stance work, close strikes, evasive movement, and restorative focus." },
+    { name = "Paladin", color = "F48CBA", spells = { "Seal of Righteousness", "Holy Light", "Blessing of Might", "Devotion Aura", "Crusader Strike", "Divine Protection" }, description = "A level-one paladin interpretation, the Paladin appears when holy defense, righteous seals, and martial conviction align." },
+    { name = "Priest", color = "FFFFFF", spells = { "Smite", "Power Word: Shield", "Power Word: Fortitude", "Renew", "Shadow Word: Pain", "Mind Blast" }, description = "A level-one priest interpretation, the Priest balances faith, shieldcraft, healing, and shadowed insight." },
+    { name = "Rogue", color = "FFF468", spells = { "Sinister Strike", "Backstab", "Gouge", "Evasion", "Stealth", "Sprint" }, description = "A level-one rogue interpretation, the Rogue wins through unfair openings, quick blades, and escape tools." },
+    { name = "Shaman", color = "0070DD", spells = { "Lightning Bolt", "Earth Shock", "Flame Shock", "Searing Totem", "Strength of Earth Totem", "Flametongue Weapon" }, description = "A level-one shaman interpretation, the Shaman speaks through shocks, totems, weapon blessings, and raw elemental rhythm." },
+    { name = "Warlock", color = "8788EE", spells = { "Shadow Bolt", "Corruption", "Curse of Agony", "Immolate", "Drain Soul", "Life Tap" }, description = "A level-one warlock interpretation, the Warlock forms from curses, shadow bolts, soul magic, and risky power." },
+    { name = "Warrior", color = "C69B6D", spells = { "Battle Stance", "Heroic Strike", "Victory Rush", "Bloodrage", "Battle Shout", "Thunder Clap" }, description = "A level-one warrior interpretation, the Warrior is raw stance, shout, steel, and momentum." },
+    { name = "Spell Breaker", color = "7DF9FF", spells = { "Arcane Missiles", "Earth Shock", "Power Word: Shield", "Mage Armor", "Frost Nova", "Shield of Righteousness" }, description = "A level-one spell breaker interpretation, the Spell Breaker reads as warded anti-magic pressure and precise disruptive force." },
+    { name = "Abyss Walker", color = "1A1A2E", spells = { "Shadow Bolt", "Corruption", "Fear", "Fade", "Stealth", "Death Coil" }, description = "A level-one abyss walker interpretation, the Abyss Walker emerges from shadow movement, fear, and void-touched pressure." },
+    { name = "Bloodbinder", color = "8B0000", spells = { "Blood Presence", "Blood Strike", "Drain Soul", "Life Tap", "Renew", "Death Strike" }, description = "A level-one bloodbinder interpretation, the Bloodbinder turns life, pain, and blood-themed strikes into a crimson pact." },
+    { name = "Chronomancer", color = "FFD700", spells = { "Arcane Missiles", "Arcane Intellect", "Frost Nova", "Polymorph", "Sprint", "Renew" }, description = "A level-one chronomancer interpretation, the Chronomancer uses arcane timing, control, quick movement, and delayed recovery as time-flavored magic." },
+    { name = "Grave Warden", color = "4B5320", spells = { "Defensive Stance", "Death and Decay", "Demon Skin", "Stoneskin Totem", "Thorns", "Power Word: Fortitude" }, description = "A level-one grave warden interpretation, the Grave Warden is stubborn, earthy, death-marked, and hard to shift." },
+    { name = "Storm Herald", color = "00BFFF", spells = { "Lightning Bolt", "Earth Shock", "Flame Shock", "Thunder Clap", "Stormstrike", "Lightning Shield" }, description = "A level-one storm herald interpretation, the Storm Herald appears when thunder, shocks, and sudden elemental violence dominate." },
+    { name = "Runesmith", color = "B87333", spells = { "Arcane Intellect", "Strength of Earth Totem", "Rockbiter Weapon", "Shield of Righteousness", "Blood Strike", "Runic Focus" }, description = "A level-one runesmith interpretation, the Runesmith is crafted power, reinforced weapons, and engraved battlefield pressure." },
+    { name = "Soul Weaver", color = "6A0DAD", spells = { "Drain Soul", "Renew", "Healing Wave", "Power Word: Shield", "Shadow Word: Pain", "Mind Blast" }, description = "A level-one soul weaver interpretation, the Soul Weaver knots healing, shadow, and spirit pressure into one strange pattern." },
+    { name = "Beast Warden", color = "556B2F", spells = { "Tame Beast", "Raptor Strike", "Mongoose Bite", "Aspect of the Monkey", "Hunter's Mark", "Thorns" }, description = "A level-one beast warden interpretation, the Beast Warden channels animal instinct, close counters, and wild protection." },
+    { name = "Voidcaller", color = "2F4F4F", spells = { "Shadow Bolt", "Corruption", "Fear", "Summon Imp", "Summon Voidwalker", "Mind Blast" }, description = "A level-one voidcaller interpretation, the Voidcaller brings summons, fear, shadow, and abyssal pressure into the roll." },
+    { name = "Sun Cleric", color = "FFDE59", spells = { "Smite", "Holy Light", "Renew", "Power Word: Fortitude", "Seal of Righteousness", "Blessing of Might" }, description = "A level-one sun cleric interpretation, the Sun Cleric shines through holy punishment, recovery, and radiant support." },
+    { name = "Frostbinder", color = "AFEEEE", spells = { "Frostbolt", "Frost Armor", "Frost Nova", "Icy Touch", "Entangling Roots", "Power Word: Shield" }, description = "A level-one frostbinder interpretation, the Frostbinder is control, chill, armor, and the slow closing of options." },
+    { name = "Ashbringer", color = "A9A9A9", spells = { "Immolate", "Fire Blast", "Consecration", "Devotion Aura", "Death and Decay", "Heroic Strike" }, description = "A level-one ashbringer interpretation, the Ashbringer blends aftermath, fire, holy ground, and grim martial force." },
+    { name = "Hexblade", color = "3B0A45", spells = { "Sinister Strike", "Backstab", "Curse of Agony", "Corruption", "Shadow Word: Pain", "Gouge" }, description = "A level-one hexblade interpretation, the Hexblade binds curses and blade work into one hostile edge." },
+    { name = "Spirit Dancer", color = "7FFFD4", spells = { "Evasion", "Sprint", "Renew", "Healing Wave", "Cat Form", "Moonfire" }, description = "A level-one spirit dancer interpretation, the Spirit Dancer appears through movement, recovery, grace, and spectral-feeling magic." },
+    { name = "Iron Vanguard", color = "708090", spells = { "Defensive Stance", "Sunder Armor", "Shield Block", "Devotion Aura", "Stoneskin Totem", "Bloodrage" }, description = "A level-one iron vanguard interpretation, the Iron Vanguard is armor, stance, threat, and immovable intent." },
+    { name = "Plaguebringer", color = "556B2F", spells = { "Plague Strike", "Blood Boil", "Corruption", "Curse of Agony", "Serpent Sting", "Death and Decay" }, description = "A level-one plaguebringer interpretation, the Plaguebringer wins with disease, blight, poison, and time." },
+    { name = "Starcaller", color = "4169E1", spells = { "Arcane Missiles", "Moonfire", "Arcane Shot", "Smite", "Wrath", "Lightning Bolt" }, description = "A level-one starcaller interpretation, the Starcaller is celestial pressure through moonlight, arcane force, and distant strikes." },
+    { name = "Shadow Duelist", color = "2B2B2B", spells = { "Backstab", "Gouge", "Stealth", "Shadow Word: Pain", "Shadow Bolt", "Evasion" }, description = "A level-one shadow duelist interpretation, the Shadow Duelist uses darkness, timing, and cruel precision." },
+    { name = "Ember Knight", color = "FF4500", spells = { "Fire Blast", "Immolate", "Seal of Righteousness", "Crusader Strike", "Heroic Strike", "Flametongue Weapon" }, description = "A level-one ember knight interpretation, the Ember Knight is martial fire, heated steel, and burning conviction." },
+    { name = "Tide Sage", color = "20B2AA", spells = { "Healing Wave", "Seal of Wisdom", "Earthbind Totem", "Frostbolt", "Renew", "Lightning Bolt" }, description = "A level-one tide sage interpretation, the Tide Sage flows between healing, control, wisdom, and elemental response." },
+    { name = "Bone Oracle", color = "F5F5DC", spells = { "Mind Blast", "Power Word: Fortitude", "Death Coil", "Resurrection", "Shadow Word: Pain", "Smite" }, description = "A level-one bone oracle interpretation, the Bone Oracle reads omens through death, mind magic, and brittle faith." },
+    { name = "Thunder Reaver", color = "1E90FF", spells = { "Lightning Bolt", "Earth Shock", "Stormstrike", "Thunder Clap", "Heroic Strike", "Mongoose Bite" }, description = "A level-one thunder reaver interpretation, the Thunder Reaver is storm impact translated into weapon pressure." },
+    { name = "Nether Alchemist", color = "9932CC", spells = { "Arcane Missiles", "Life Tap", "Immolate", "Corruption", "Conjure Water", "Create Healthstone" }, description = "A level-one nether alchemist interpretation, the Nether Alchemist reads as unstable arcane, shadow, fuel, and strange utility." },
+    { name = "Wildheart", color = "228B22", spells = { "Mark of the Wild", "Thorns", "Rejuvenation", "Cat Form", "Raptor Strike", "Entangling Roots" }, description = "A level-one wildheart interpretation, the Wildheart is green survival, instinct, roots, and stubborn vitality." },
+    { name = "Doom Harbinger", color = "800000", spells = { "Shadow Bolt", "Curse of Agony", "Death and Decay", "Death Coil", "Immolate", "Fear" }, description = "A level-one doom harbinger interpretation, the Doom Harbinger carries shadow, flame, fear, and prophecy-of-ruin energy." },
+}
+
+for _, preset in ipairs(dropdownAutoClassPresets) do
+    local weights = {}
+    for index, spellName in ipairs(preset.spells or {}) do
+        weights[spellName] = math.max(3, 8 - math.floor((index - 1) / 2))
+    end
+
+    ClassForge.autoClassPresets[#ClassForge.autoClassPresets + 1] = {
+        name = preset.name,
+        color = preset.color,
+        description = preset.description,
+        requiredAny = preset.spells,
+        weights = weights,
+        minScore = 26,
+        dropdownPreset = true,
+    }
+end
+
+local targetAutoClassPresetCount = 500
+
+local generatedAutoClassNamingPrefixes = {
+    "Fencer",
+    "Grappler",
+    "Marksman",
+    "Scout",
+    "Sage",
+    "Ranger",
+    "Sorcerer",
+    "Conjurer",
+    "Priest",
+    "Artificer",
+    "Druid",
+    "Enhancer",
+    "Tactician",
+    "Battle Dancer",
+    "Daemonologist",
+    "Fairy Tamer",
+}
+
+local generatedAutoClassNamingSuffixes = {
+    "Fighter",
+    "Wanderer",
+    "Invoker",
+    "Wayfarer",
+    "Striker",
+    "Binder",
+    "Mystic",
+    "Warden",
+    "Herald",
+    "Arcanist",
+    "Sentinel",
+    "Channeler",
+    "Skirmisher",
+    "Seeker",
+    "Spellblade",
+    "Adventurer",
+}
+
+local function GetGeneratedAutoClassName(theme, form, themeIndex, formIndex)
+    local seed = (themeIndex * 37) + (formIndex * 17)
+    local prefix = form.prefix
+    local suffix = theme.suffix
+
+    if seed % 4 == 0 then
+        prefix = generatedAutoClassNamingPrefixes[(seed % #generatedAutoClassNamingPrefixes) + 1]
+    elseif seed % 6 == 0 then
+        prefix = form.prefix .. " " .. generatedAutoClassNamingPrefixes[((seed + formIndex) % #generatedAutoClassNamingPrefixes) + 1]
+    end
+
+    if seed % 5 == 0 then
+        suffix = generatedAutoClassNamingSuffixes[(seed % #generatedAutoClassNamingSuffixes) + 1]
+    elseif seed % 7 == 0 then
+        suffix = theme.suffix .. " " .. generatedAutoClassNamingSuffixes[((seed + themeIndex) % #generatedAutoClassNamingSuffixes) + 1]
+    end
+
+    return prefix .. " " .. suffix
+end
+
+for themeIndex, theme in ipairs(generatedAutoClassThemes) do
+    if #ClassForge.autoClassPresets >= targetAutoClassPresetCount then
+        break
+    end
+
+    for formIndex, form in ipairs(generatedAutoClassForms) do
+        if #ClassForge.autoClassPresets >= targetAutoClassPresetCount then
+            break
+        end
+
         local weights = {}
         local requiredAny = {}
         for _, spellName in ipairs(theme.spells) do
@@ -265,7 +418,7 @@ for _, theme in ipairs(generatedAutoClassThemes) do
         end
 
         ClassForge.autoClassPresets[#ClassForge.autoClassPresets + 1] = {
-            name = form.prefix .. " " .. theme.suffix,
+            name = GetGeneratedAutoClassName(theme, form, themeIndex, formIndex),
             color = theme.color,
             description = "A " .. theme.description .. " " .. form.description,
             requiredAny = requiredAny,
