@@ -337,6 +337,50 @@ function ClassForge:CreateOptionsPanel()
         { name = "Wildheart", color = "228B22" },
         { name = "Doom Harbinger", color = "800000" },
     }
+    local presetDescriptions = {
+        ["Death Knight"] = [[A grim champion bound to death and vengeance, the Death Knight strides into battle wrapped in frost, blood, and shadow. They wear the memory of the grave like armor, crushing enemies with cursed steel while drawing strength from suffering and ruin. To face a Death Knight is to meet a warrior who has already crossed the threshold of death and returned with purpose.]],
+        ["Demon Hunter"] = [[A relentless hunter scarred by the powers they chose to wield, the Demon Hunter turns fel fury into a weapon of precision and wrath. They strike with blinding speed, burning through enemies with spectral sight, corrupted magic, and blades that never seem to rest. To face a Demon Hunter is to be hunted by someone who became the monster's nightmare.]],
+        ["Druid"] = [[A guardian of the wild and keeper of ancient balance, the Druid shifts between claw, spell, fang, and root as the battlefield demands. They call upon moonlight, storm, and living earth, answering violence with the patient fury of nature itself. To face a Druid is to stand against the wilderness wearing a mortal face.]],
+        ["Evoker"] = [[A draconic spellcaster shaped by ancient magic, the Evoker channels the primal force of dragonkind through breath, claw, and living flame. They bend preservation and devastation into flowing forms, striking from the sky with power that feels older than kingdoms. To face an Evoker is to feel the sky open and the dragonflights answer.]],
+        ["Hunter"] = [[A patient stalker of wild places, the Hunter reads the world by track, wind, and heartbeat. With bow, beast, trap, and instinct, they turn every battlefield into chosen ground and every mistake into prey's folly. To face a Hunter is to realize too late that the chase began long before the first arrow flew.]],
+        ["Mage"] = [[A master of disciplined destruction, the Mage bends frost, fire, and arcane law into weapons of impossible precision. They reshape distance, time, and pressure with a scholar's mind and a storm's appetite. To face a Mage is to stand inside a theorem that ends in flame, ice, or annihilation.]],
+        ["Monk"] = [[A living current of discipline and motion, the Monk turns breath, balance, and focused chi into fluid violence. They strike where the body is weakest, mend where the spirit is frayed, and move with the certainty of water finding stone. To face a Monk is to fight calm itself as it becomes a storm.]],
+        ["Paladin"] = [[A sanctified defender wrapped in conviction, the Paladin carries the Light as shield, hammer, and judgment. They hold the line with unwavering faith, mending allies and breaking foes beneath radiant purpose. To face a Paladin is to stand before a vow made flesh and sharpened into war.]],
+        ["Priest"] = [[A vessel of faith and forbidden insight, the Priest walks the fragile line between salvation and shadow. They soothe the wounded, fortify the spirit, and call down powers that can either redeem the soul or unravel it. To face a Priest is to learn that mercy and terror may speak with the same voice.]],
+        ["Rogue"] = [[A blade in the blind spot, the Rogue thrives where rules collapse and shadows gather. They strike with poison, timing, and ruthless precision, turning confusion into an opening and an opening into a corpse. To face a Rogue is to discover the fight was decided before you knew it began.]],
+        ["Shaman"] = [[A stormspeaker and bargain-maker of the elements, the Shaman calls fire, earth, water, and air into brutal harmony. They fight as a living conduit, mending allies with river-songs and shattering enemies with thunderous command. To face a Shaman is to hear the world itself choose a side.]],
+        ["Warlock"] = [[A scholar of ruin and master of forbidden bargains, the Warlock turns corruption, flame, and fear into obedient tools. They draw power from places wisdom avoids, binding demons and curses into a patient engine of collapse. To face a Warlock is to feel your doom negotiated before the first spell lands.]],
+        ["Warrior"] = [[A relentless engine of steel and will, the Warrior meets chaos with muscle, rage, and hard-earned mastery. They break formations, weather punishment, and turn every wound into fuel for the next decisive strike. To face a Warrior is to stand in the path of momentum given a name.]],
+        ["Spell Breaker"] = [[A crystalline duelist forged to silence sorcery, the Spell Breaker cuts through enchantments as cleanly as flesh. They turn hostile magic aside, shatter wards, and punish casters with precise bursts of electric-blue force. To face a Spell Breaker is to watch your strongest spell become the opening they were waiting for.]],
+        ["Abyss Walker"] = [[A wanderer of the void between worlds, the Abyss Walker moves as if gravity and fear are only suggestions. They draw power from lightless depths, slipping through shadowed angles and dragging enemies toward the silence beneath reality. To face an Abyss Walker is to feel the ground become a doorway into nothing.]],
+        ["Bloodbinder"] = [[A crimson occultist who writes power through pulse and pain, the Bloodbinder turns lifeblood into chain, blade, and pact. They bleed enemies dry, stitch strength from sacrifice, and bind survival to violence with terrifying elegance. To face a Bloodbinder is to learn that every heartbeat can be claimed.]],
+        ["Chronomancer"] = [[A keeper of fractured seconds, the Chronomancer fights from the edge of moments that have not fully happened yet. They hasten allies, delay disaster, and strike through brief openings in time's golden machinery. To face a Chronomancer is to lose not only the battle, but the instant when victory was possible.]],
+        ["Grave Warden"] = [[A solemn sentinel of rot and remembrance, the Grave Warden stands where the living fear to linger. They draw strength from old soil, bone, and decay, turning graveyard stillness into stubborn protection and punishing inevitability. To face a Grave Warden is to feel the earth remember that all things return to it.]],
+        ["Storm Herald"] = [[A herald of black clouds and roaring skies, the Storm Herald carries thunder in their blood and lightning in their hands. They tear across battlefields with sudden force, calling wind and rain into a chorus of violent prophecy. To face a Storm Herald is to stand beneath a storm that has learned your name.]],
+        ["Runesmith"] = [[A patient artisan of war-magic, the Runesmith hammers ancient signs into steel, stone, and flesh. They prepare power with deliberate craft, turning each mark into a stored verdict waiting to ignite. To face a Runesmith is to fight a battlefield that has already been engraved against you.]],
+        ["Soul Weaver"] = [[A deep-violet mystic of threads unseen, the Soul Weaver knots spirit, memory, and pain into living patterns. They mend allies by stitching what was torn and unravel enemies by pulling at the seams of the self. To face a Soul Weaver is to feel your own soul become part of their loom.]],
+        ["Beast Warden"] = [[A wild guardian bonded to tooth, talon, and ancient instinct, the Beast Warden fights as the voice of the untamed world. They command pack fury, patient endurance, and the brutal wisdom of survival. To face a Beast Warden is to find that the forest has chosen a champion and given it claws.]],
+        ["Voidcaller"] = [[A summoner of abyssal whispers, the Voidcaller reaches into the dark between stars and brings something back that should not answer. They wield pressure, silence, and unraveling shadow as tools of slow catastrophe. To face a Voidcaller is to hear the emptiness speak in your direction.]],
+        ["Sun Cleric"] = [[A radiant minister of flame and renewal, the Sun Cleric bears warmth as both mercy and judgment. They heal with golden light, sear corruption from the field, and stand as a living dawn against despair. To face a Sun Cleric is to be weighed beneath a sunrise that does not forgive.]],
+        ["Frostbinder"] = [[A glacial caster of stillness and control, the Frostbinder chains motion itself in pale blue cold. They slow the charge, quiet the wound, and shape frozen force into spears, prisons, and patient execution. To face a Frostbinder is to feel the battle narrow into one final breath of winter.]],
+        ["Ashbringer"] = [[A grey-clad omen of endings, the Ashbringer walks where flame has already devoured hope. They scatter cinders, break resolve, and turn the remains of destruction into a weapon of mournful certainty. To face an Ashbringer is to fight the aftermath before the fire has even begun.]],
+        ["Hexblade"] = [[A cursed duelist with magic in the edge of every strike, the Hexblade binds malice, omen, and steel into a single killing art. They carve misfortune into enemies with each blow, letting fate fray around the wound. To face a Hexblade is to realize the blade is only the most obvious curse.]],
+        ["Spirit Dancer"] = [[An ethereal warrior moving between breath and afterimage, the Spirit Dancer fights to rhythms heard by the living and the dead. They weave grace, trance, and spectral force into flowing strikes that guide allies and bewilder foes. To face a Spirit Dancer is to chase a ghost that hits back.]],
+        ["Iron Vanguard"] = [[A steel-grey bulwark of discipline and resolve, the Iron Vanguard advances where others would break. They anchor the line, absorb punishment, and answer chaos with methodical force. To face an Iron Vanguard is to throw yourself against a fortress that has learned to march.]],
+        ["Plaguebringer"] = [[A bearer of blight and patient ruin, the Plaguebringer turns sickness into strategy and decay into dominion. They spread rot through armor, blood, and breath, letting time become another weapon in their hand. To face a Plaguebringer is to lose ground to an enemy you cannot simply cut down.]],
+        ["Starcaller"] = [[A cosmic invoker crowned by distant light, the Starcaller draws upon constellations, omens, and celestial fire. They guide power from the heavens into precise and terrible impact, making the battlefield feel small beneath the sky. To face a Starcaller is to learn that the stars can fall with intent.]],
+        ["Shadow Duelist"] = [[A midnight fencer of silence and misdirection, the Shadow Duelist turns absence into angle and darkness into blade. They isolate enemies, punish hesitation, and finish fights in the space between one breath and the next. To face a Shadow Duelist is to duel the part of the room the light forgot.]],
+        ["Ember Knight"] = [[A burning champion wrapped in oath and flame, the Ember Knight carries the last heat of a dying fire into every charge. They blend martial discipline with explosive ignition, building pressure until the battlefield catches. To face an Ember Knight is to stand before armor that burns hotter with every blow.]],
+        ["Tide Sage"] = [[A seafoam oracle of currents and hidden depths, the Tide Sage reads battle like water reads stone. They mend, erode, and overwhelm in patient surges, drawing strength from rhythm rather than haste. To face a Tide Sage is to discover that the tide was rising long before you noticed.]],
+        ["Bone Oracle"] = [[A pale seer of marrow and omen, the Bone Oracle listens to the dead for truths the living refuse to hear. They cast fate through relic, rib, and whispered memory, turning prophecy into brittle violence. To face a Bone Oracle is to feel your ending spoken by something already buried.]],
+        ["Thunder Reaver"] = [[A blue-white executioner of storm and speed, the Thunder Reaver splits the field with crackling force. They strike in sudden bursts, severing defenses with electric momentum and roaring impact. To face a Thunder Reaver is to be caught where lightning decides to become a weapon.]],
+        ["Nether Alchemist"] = [[An arcane experimenter of volatile genius, the Nether Alchemist distills forbidden energy into tinctures, bombs, and unstable miracles. They transmute risk into advantage, letting every failed rule become a new reaction. To face a Nether Alchemist is to fight someone delighted by the explosion you hoped to avoid.]],
+        ["Wildheart"] = [[A forest-born champion led by instinct and green fury, the Wildheart fights with the stubborn vitality of root and fang. They endure, recover, and strike with the unpolished savagery of life refusing to yield. To face a Wildheart is to battle the part of nature that survives every axe.]],
+        ["Doom Harbinger"] = [[A red-cloaked herald of final hours, the Doom Harbinger carries prophecy like a weapon and despair like a banner. They build toward catastrophic moments, each strike and spell announcing an ending already in motion. To face a Doom Harbinger is to hear the future arrive with a blade in its hand.]],
+    }
+    for _, preset in ipairs(classPresets) do
+        preset.description = presetDescriptions[preset.name] or ""
+    end
     local updatePreview
 
     local presetButton = CreateFrame("Button", nil, overview, "UIPanelButtonTemplate")
@@ -344,8 +388,15 @@ function ClassForge:CreateOptionsPanel()
     presetButton:SetHeight(22)
     presetButton:SetPoint("LEFT", classBox, "RIGHT", 10, 0)
     presetButton:SetText(ClassForge:L("presets"))
+
+    local presetHint = overview:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    presetHint:SetPoint("TOPLEFT", presetButton, "BOTTOMLEFT", 0, -4)
+    presetHint:SetWidth(330)
+    presetHint:SetJustifyH("LEFT")
+    presetHint:SetText(ClassForge:L("presets_hint"))
+
     local presetPopup = CreateFrame("Frame", "ClassForgePresetPopup", overview)
-    presetPopup:SetWidth(250)
+    presetPopup:SetWidth(310)
     presetPopup:SetHeight(220)
     presetPopup:SetPoint("TOPLEFT", presetButton, "BOTTOMLEFT", 0, -4)
     presetPopup:SetFrameStrata("DIALOG")
@@ -365,13 +416,13 @@ function ClassForge:CreateOptionsPanel()
     presetScrollFrame:SetPoint("BOTTOMRIGHT", -28, 8)
 
     local presetContent = CreateFrame("Frame", nil, presetScrollFrame)
-    presetContent:SetWidth(214)
+    presetContent:SetWidth(274)
     presetContent:SetHeight(#classPresets * 22)
     presetScrollFrame:SetScrollChild(presetContent)
-    local colorBox = createEditBox(overview, 220, 30, ClassForge:L("class_color_hex"), 0, -62)
+    local colorBox = createEditBox(overview, 220, 30, ClassForge:L("class_color_hex"), 0, -82)
 
     local roleLabel = overview:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    roleLabel:SetPoint("TOPLEFT", 0, -124)
+    roleLabel:SetPoint("TOPLEFT", 0, -144)
     roleLabel:SetText(ClassForge:L("role_label"))
 
     local roleValue = overview:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
@@ -443,6 +494,41 @@ function ClassForge:CreateOptionsPanel()
         ClassForge:Print(ClassForge:L("profile_saved"))
     end)
 
+    local lastDescriptionBeforePreset
+    local descriptionUndoButton
+
+    local descriptionClearButton = CreateFrame("Button", nil, description, "UIPanelButtonTemplate")
+    descriptionClearButton:SetWidth(140)
+    descriptionClearButton:SetHeight(24)
+    descriptionClearButton:SetPoint("LEFT", descriptionSaveButton, "RIGHT", 8, 0)
+    descriptionClearButton:SetText(ClassForge:L("clear_description"))
+    descriptionClearButton:SetScript("OnClick", function()
+        local currentDescription = descriptionBox:GetText()
+        if ClassForge:Trim(currentDescription) ~= "" then
+            lastDescriptionBeforePreset = currentDescription
+            if descriptionUndoButton then
+                descriptionUndoButton:Enable()
+            end
+        end
+        descriptionBox:SetText("")
+        updatePreview()
+    end)
+
+    descriptionUndoButton = CreateFrame("Button", nil, description, "UIPanelButtonTemplate")
+    descriptionUndoButton:SetWidth(140)
+    descriptionUndoButton:SetHeight(24)
+    descriptionUndoButton:SetPoint("LEFT", descriptionClearButton, "RIGHT", 8, 0)
+    descriptionUndoButton:SetText(ClassForge:L("undo_description"))
+    descriptionUndoButton:Disable()
+    descriptionUndoButton:SetScript("OnClick", function()
+        if lastDescriptionBeforePreset then
+            descriptionBox:SetText(lastDescriptionBeforePreset)
+            lastDescriptionBeforePreset = nil
+            descriptionUndoButton:Disable()
+            updatePreview()
+        end
+    end)
+
     local preview = overview:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     preview:SetPoint("TOPLEFT", 360, -28)
     preview:SetWidth(260)
@@ -479,7 +565,7 @@ function ClassForge:CreateOptionsPanel()
 
     for index, preset in ipairs(classPresets) do
         local row = CreateFrame("Button", nil, presetContent)
-        row:SetWidth(214)
+        row:SetWidth(274)
         row:SetHeight(20)
         row:SetPoint("TOPLEFT", 0, -((index - 1) * 22))
 
@@ -496,6 +582,13 @@ function ClassForge:CreateOptionsPanel()
         row:SetScript("OnClick", function()
             classBox:SetText(preset.name)
             colorBox:SetText(preset.color)
+            local currentDescription = ClassForge:Trim(descriptionBox:GetText())
+            local presetDescription = preset.description or ""
+            if currentDescription ~= "" and currentDescription ~= presetDescription then
+                lastDescriptionBeforePreset = descriptionBox:GetText()
+                descriptionUndoButton:Enable()
+            end
+            descriptionBox:SetText(presetDescription)
             presetPopup:Hide()
             updatePreview()
         end)
@@ -1091,9 +1184,12 @@ function ClassForge:CreateOptionsPanel()
         roleHint:SetText(ClassForge:L("role_auto_hint"))
         factionLabel:SetText(ClassForge:L("faction_label"))
         presetButton:SetText(ClassForge:L("presets"))
+        presetHint:SetText(ClassForge:L("presets_hint"))
         colorPickerButton:SetText(ClassForge:L("pick"))
         saveButton:SetText(ClassForge:L("save"))
         descriptionSaveButton:SetText(ClassForge:L("save"))
+        descriptionClearButton:SetText(ClassForge:L("clear_description"))
+        descriptionUndoButton:SetText(ClassForge:L("undo_description"))
         syncButton:SetText(ClassForge:L("sync"))
         resetButton:SetText(ClassForge:L("reset"))
         languageLabel:SetText(ClassForge:L("language"))
