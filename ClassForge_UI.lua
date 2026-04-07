@@ -33,6 +33,8 @@ function ClassForge:HandleSlash(message)
         self:Print("/cf setcolor <hex>")
         self:Print("/cf setrole <role>")
         self:Print("/cf realmaware on|off")
+        self:Print("/cf autodebug on|off")
+        self:Print("/cf autoapply")
         self:Print("/cf show")
         self:Print("/cf sync")
         self:Print("/cf showminimap")
@@ -109,6 +111,37 @@ function ClassForge:HandleSlash(message)
         self:Print(self:L("realm_aware_names") .. ": " .. (self:IsRealmAwareEnabled() and self:L("on") or self:L("off")))
         self:Print(self:L("version_label") .. ": " .. (self.version or "3.0.0"))
         self:Print(self:L("downloads_label") .. ": " .. (self.releasesPage or self.homepage))
+        return
+    end
+
+    if command == "autodebug" then
+        local lowerRest = string.lower(self:Trim(rest))
+        if lowerRest == "on" then
+            self:SetAutoClassDebugEnabled(true)
+            self:Print("Auto-class debug enabled.")
+            return
+        end
+        if lowerRest == "off" then
+            self:SetAutoClassDebugEnabled(false)
+            self:Print("Auto-class debug disabled.")
+            return
+        end
+
+        self:Print("Usage: /cf autodebug on|off")
+        return
+    end
+
+    if command == "autoapply" then
+        local known = self:GetKnownSpellSet()
+        local signature = self:GetKnownSpellSignature(known)
+        local preset = self:GetAutoClassPresetForKnownSpells(known)
+        self:Print("Auto-class known spells: " .. (signature ~= "" and signature or "none"))
+        self:Print("Auto-class preset: " .. (preset and preset.name or "none"))
+        if self:ApplyAutoClassFromKnownSpells(true) then
+            self:Print("Auto-class applied.")
+        else
+            self:Print("Auto-class did not apply. Check level, toggle, or matching spells.")
+        end
         return
     end
 
@@ -801,7 +834,8 @@ function ClassForge:CreateOptionsPanel()
         if selfButton:GetChecked() then
             local characterProfile = ClassForge:GetCharacterProfile()
             characterProfile.autoClassManualOverride = false
-            ClassForge:ApplyAutoClassFromKnownSpells(true)
+            ClassForge:CaptureAutoClassSpellSnapshot()
+            ClassForge:ApplyAutoClassFromDetectedSpells(true)
         end
         ClassForge:RefreshAutoClassWatcher()
         ClassForge:RefreshPlayerCache()
@@ -833,6 +867,7 @@ function ClassForge:CreateOptionsPanel()
     groupFrameColorsToggle:SetPoint("TOPLEFT", panelCompactToggle, "BOTTOMLEFT", 0, -10)
     _G[groupFrameColorsToggle:GetName() .. "Text"]:SetText(ClassForge:L("color_group_frames"))
     groupFrameColorsToggle:SetScript("OnClick", function(selfButton)
+        ClassForgeDB.profile.colors = ClassForgeDB.profile.colors or {}
         ClassForgeDB.profile.colors.groupFrames = selfButton:GetChecked() and true or false
         ClassForge:RefreshAllDisplays()
     end)

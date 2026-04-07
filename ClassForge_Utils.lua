@@ -663,8 +663,14 @@ function ClassForge:MigrateDatabase()
 
     if version < 9 then
         ClassForgeDB.profile.autoClass = ClassForgeDB.profile.autoClass or {}
-        ClassForgeDB.profile.autoClass.maxLevel = 1
+        ClassForgeDB.profile.autoClass.maxLevel = 8
         version = 9
+    end
+
+    if version < 10 then
+        ClassForgeDB.profile.autoClass = ClassForgeDB.profile.autoClass or {}
+        ClassForgeDB.profile.autoClass.maxLevel = 1
+        version = 10
     end
 
     local rebuiltCache = {}

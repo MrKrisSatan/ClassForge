@@ -2,8 +2,8 @@ ClassForge = ClassForge or {}
 
 ClassForge.name = "ClassForge"
 ClassForge.prefix = "CLASSFORGE"
-ClassForge.version = "3.6.3"
-ClassForge.dbVersion = 9
+ClassForge.version = "3.6.4"
+ClassForge.dbVersion = 10
 ClassForge.homepage = "https://github.com/MrKrisSatan/ClassForge"
 ClassForge.releasesPage = "https://github.com/MrKrisSatan/ClassForge/releases"
 
@@ -84,6 +84,7 @@ ClassForge.defaults = {
         autoClass = {
             enabled = true,
             maxLevel = 1,
+            debug = false,
         },
     },
 }
@@ -105,6 +106,7 @@ local registeredEvents = {
     "UNIT_SPELLCAST_SUCCEEDED",
     "UNIT_HEALTH",
     "CHAT_MSG_ADDON",
+    "CHAT_MSG_SYSTEM",
     "CHAT_MSG_COMBAT_SELF_HITS",
     "CHAT_MSG_COMBAT_FRIENDLYPLAYER_HITS",
     "CHAT_MSG_COMBAT_HOSTILEPLAYER_HITS",
@@ -205,7 +207,7 @@ ClassForge.translations = {
         lock_target_panel = "Lock target profile panel position",
         compact_target_panel = "Use compact target profile panel",
         color_group_frames = "Color party and raid frame names with custom class color",
-        auto_class_low_level = "Auto-assign class preset from level 1 known spells",
+        auto_class_low_level = "Auto-assign class preset from level 1 rerolled spells",
         reset_panel = "Reset Panel",
         panel_hint = "Hold Shift and drag the target profile when it is unlocked.",
         cached_players = "Cached players",
@@ -352,7 +354,7 @@ ClassForge.translations = {
         lock_target_panel = "Bloquear posición del panel del objetivo",
         compact_target_panel = "Usar panel de objetivo compacto",
         color_group_frames = "Colorear nombres de grupo y banda con el color de clase personalizado",
-        auto_class_low_level = "Asignar automaticamente un predefinido segun hechizos conocidos de nivel 1",
+        auto_class_low_level = "Asignar automaticamente un predefinido segun hechizos cambiados de nivel 1",
         reset_panel = "Restablecer panel",
         panel_hint = "Mantén Mayús y arrastra el perfil del objetivo cuando esté desbloqueado.",
         cached_players = "Jugadores en caché",
@@ -499,7 +501,7 @@ ClassForge.translations = {
         lock_target_panel = "Закрепить панель цели",
         compact_target_panel = "Использовать компактную панель цели",
         color_group_frames = "Красить имена группы и рейда цветом пользовательского класса",
-        auto_class_low_level = "Автоматически выбирать пресет по заклинаниям 1 уровня",
+        auto_class_low_level = "Автоматически выбирать пресет по переброшенным заклинаниям 1 уровня",
         reset_panel = "Сброс панели",
         panel_hint = "Удерживайте Shift и перетаскивайте профиль цели, когда он не закреплен.",
         cached_players = "Игроки в кэше",
@@ -684,70 +686,6 @@ function ClassForge:EnsureCurrentCharacterProfile()
     return characterProfile
 end
 
-ClassForge.autoClassPresets = {
-    {
-        name = "Abyssal Dreadstorm",
-        color = "6A0DAD",
-        description = "A walking calamity clad in flesh and fury, the Abyssal Dreadstorm is a harbinger of ruin that blurs the line between blade and cataclysm. Drawing power from the howling void beneath reality, they weave brutal melee strikes with surging tides of abyssal energy, tearing through enemies in a relentless storm of steel and shadow. Each swing feeds the tempest within, building toward devastating spellbursts that crack the battlefield open like a wound. To face a Dreadstorm is not to duel a warrior, but to stand against an oncoming apocalypse given form.",
-        required = { "Blood Presence", "Sinister Strike", "Flametongue Weapon", "Seal of Righteousness" },
-        weights = { ["Blood Presence"] = 5, ["Sinister Strike"] = 5, ["Flametongue Weapon"] = 5, ["Seal of Righteousness"] = 5, ["Shadow Bolt"] = 2, ["Earth Shock"] = 2 },
-    },
-    {
-        name = "Runeblade Ravager",
-        color = "C41E3A",
-        description = "A death-charged melee executioner, the Runeblade Ravager turns presence, plague, and weapon strikes into a ruthless close-range engine. They carve through enemies with runic pressure and blood-fed momentum, building every exchange toward a killing blow.",
-        weights = { ["Blood Presence"] = 5, ["Blood Strike"] = 5, ["Plague Strike"] = 4, ["Obliterate"] = 4, ["Death Strike"] = 4, ["Icy Touch"] = 2 },
-    },
-    {
-        name = "Stormbrand Striker",
-        color = "00BFFF",
-        description = "A crackling weapon-channeler, the Stormbrand Striker binds elemental force to every swing. Flametongue, Stormstrike, and sudden shocks turn their melee rhythm into a rolling thunderhead of steel and lightning.",
-        weights = { ["Stormstrike"] = 6, ["Flametongue Weapon"] = 5, ["Earth Shock"] = 4, ["Lightning Shield"] = 3, ["Strength of Earth Totem"] = 2, ["Searing Totem"] = 2 },
-    },
-    {
-        name = "Radiant Blade",
-        color = "F48CBA",
-        description = "A holy melee champion, the Radiant Blade carries divine judgment into the front line. Seals, crusader strikes, and righteous force turn their weapon into a bright sentence passed on anything foolish enough to stand close.",
-        weights = { ["Seal of Righteousness"] = 5, ["Crusader Strike"] = 6, ["Judgement of Light"] = 4, ["Judgement of Wisdom"] = 4, ["Blessing of Might"] = 3, ["Consecration"] = 2 },
-    },
-    {
-        name = "Shadowcut Duelist",
-        color = "2B2B2B",
-        description = "A quick-handed melee opportunist, the Shadowcut Duelist wins through openings, poisons, and vicious precision. Sinister Strike, Slice and Dice, and finishing blows make them less a soldier than a sudden bad decision with a blade.",
-        weights = { ["Sinister Strike"] = 5, ["Slice and Dice"] = 5, ["Eviscerate"] = 4, ["Backstab"] = 4, ["Gouge"] = 3, ["Stealth"] = 2 },
-    },
-    {
-        name = "Feral Ripper",
-        color = "FF7C0A",
-        description = "A shapeshifting predator, the Feral Ripper fights from instinct, momentum, and blood on the ground. Cat Form, Claw, and Rip make every second in melee feel like being hunted by the wild itself.",
-        weights = { ["Cat Form"] = 6, ["Claw"] = 5, ["Rip"] = 5, ["Prowl"] = 3, ["Feral Charge - Cat"] = 3, ["Mark of the Wild"] = 1 },
-    },
-    {
-        name = "Iron Mauler",
-        color = "708090",
-        description = "A brutal front-line bruiser, the Iron Mauler turns raw weapon pressure into steady ruin. Heroic Strike, Battle Shout, and heavy defensive instincts keep them planted in the fight long after softer killers would break.",
-        weights = { ["Heroic Strike"] = 5, ["Battle Shout"] = 4, ["Victory Rush"] = 4, ["Bloodrage"] = 3, ["Battle Stance"] = 2, ["Rend"] = 2 },
-    },
-    {
-        name = "Wildfang Warden",
-        color = "AAD372",
-        description = "A rugged beast-side skirmisher, the Wildfang Warden mixes hunter discipline with close-range savagery. Raptor Strike, Mongoose Bite, and animal instinct make them dangerous even when the fight collapses into tooth-and-claw range.",
-        weights = { ["Raptor Strike"] = 5, ["Mongoose Bite"] = 5, ["Aspect of the Monkey"] = 4, ["Hunter's Mark"] = 2, ["Tame Beast"] = 2, ["Serpent Sting"] = 2 },
-    },
-    {
-        name = "Felbrand Reaver",
-        color = "8788EE",
-        description = "A fel-touched aggressor, the Felbrand Reaver mixes weapon pressure with curses, flame, and demonic attrition. They do not simply cut enemies down; they make the wound burn, linger, and answer to darker powers.",
-        weights = { ["Demon Skin"] = 4, ["Immolate"] = 4, ["Corruption"] = 4, ["Curse of Agony"] = 3, ["Shadow Bolt"] = 3, ["Life Tap"] = 2 },
-    },
-    {
-        name = "Battle Cleric",
-        color = "FFDE59",
-        description = "A stubborn light-bearing combatant, the Battle Cleric survives by layering faith, protection, and punishment. Shields and blessings keep them moving while holy strikes and steady pressure wear the enemy down.",
-        weights = { ["Power Word: Shield"] = 4, ["Power Word: Fortitude"] = 3, ["Smite"] = 3, ["Renew"] = 2, ["Blessing of Might"] = 3, ["Seal of Righteousness"] = 3 },
-    },
-}
-
 function ClassForge:IsAutoClassEnabled()
     local profile = self:GetProfile()
     local autoClass = profile and profile.autoClass or nil
@@ -766,6 +704,28 @@ function ClassForge:SetAutoClassEnabled(enabled)
     ClassForgeDB.profile = ClassForgeDB.profile or {}
     ClassForgeDB.profile.autoClass = ClassForgeDB.profile.autoClass or {}
     ClassForgeDB.profile.autoClass.enabled = enabled and true or false
+end
+
+function ClassForge:IsAutoClassDebugEnabled()
+    local profile = self:GetProfile()
+    local autoClass = profile and profile.autoClass or nil
+    return autoClass and autoClass.debug and true or false
+end
+
+function ClassForge:SetAutoClassDebugEnabled(enabled)
+    if not ClassForgeDB then
+        return
+    end
+
+    ClassForgeDB.profile = ClassForgeDB.profile or {}
+    ClassForgeDB.profile.autoClass = ClassForgeDB.profile.autoClass or {}
+    ClassForgeDB.profile.autoClass.debug = enabled and true or false
+end
+
+function ClassForge:AutoClassDebug(message)
+    if self:IsAutoClassDebugEnabled() then
+        self:Print("|cffaaaaaaAutoClass:|r " .. tostring(message))
+    end
 end
 
 function ClassForge:GetAutoClassMaxLevel()
@@ -788,8 +748,8 @@ function ClassForge:IsAutoClassEligible()
 end
 
 function ClassForge:ShouldWatchAutoClass()
-    local characterProfile = self:GetCharacterProfile()
-    return self:IsAutoClassEligible() and not characterProfile.autoClassManualOverride
+    local level = UnitLevel and tonumber(UnitLevel("player")) or 0
+    return level == 1 and self:IsAutoClassEnabled()
 end
 
 function ClassForge:RefreshAutoClassWatcher()
@@ -798,6 +758,14 @@ function ClassForge:RefreshAutoClassWatcher()
 end
 
 function ClassForge:UpdateAutoClassWatcher(elapsed)
+    if self.pendingAutoClassRefresh then
+        self.pendingAutoClassRefresh = self.pendingAutoClassRefresh - (tonumber(elapsed) or 0)
+        if self.pendingAutoClassRefresh <= 0 then
+            self.pendingAutoClassRefresh = nil
+            self:ApplyAutoClassFromDetectedSpells(true)
+        end
+    end
+
     if not self.autoClassWatcherActive then
         return
     end
@@ -813,34 +781,120 @@ function ClassForge:UpdateAutoClassWatcher(elapsed)
     end
 
     self.autoClassWatchElapsed = 0
-    self:ApplyAutoClassFromKnownSpells()
+    self:ApplyAutoClassFromDetectedSpells(true)
 end
 
-function ClassForge:GetKnownSpellSet()
+function ClassForge:QueueAutoClassRefresh(delay)
+    if not self:IsAutoClassEligible() then
+        self:AutoClassDebug("refresh ignored; ineligible or disabled")
+        return
+    end
+
+    self.pendingAutoClassRefresh = tonumber(delay) or 0.25
+    self.autoClassWatcherActive = true
+    self:AutoClassDebug("refresh queued in " .. tostring(self.pendingAutoClassRefresh) .. "s")
+end
+
+function ClassForge:AddKnownSpellName(known, spellName)
+    local name = self:Trim(spellName)
+    if name == "" then
+        return
+    end
+
+    name = string.gsub(name, "%s*%.+$", "")
+    name = string.gsub(name, "%s*%b()$", "")
+    name = string.gsub(name, "%s+Rank%s+%d+$", "")
+    name = self:Trim(name)
+    if name ~= "" then
+        known[name] = true
+    end
+end
+
+function ClassForge:BuildAutoClassSpellSnapshot()
     local known = {}
 
     if GetNumSpellTabs and GetSpellTabInfo and GetSpellName then
-        local bookType = BOOKTYPE_SPELL or "spell"
-        local spellOffset = 0
-        for tabIndex = 1, GetNumSpellTabs() do
+        for tabIndex = 1, (tonumber(GetNumSpellTabs()) or 0) do
             local _, _, offset, numSpells = GetSpellTabInfo(tabIndex)
             offset = tonumber(offset) or 0
             numSpells = tonumber(numSpells) or 0
             for spellIndex = offset + 1, offset + numSpells do
-                local spellName = GetSpellName(spellIndex, bookType)
-                if spellName and self:Trim(spellName) ~= "" then
-                    known[self:Trim(spellName)] = true
-                end
+                self:AddKnownSpellName(known, GetSpellName(spellIndex, BOOKTYPE_SPELL or "spell"))
             end
-            spellOffset = offset + numSpells
         end
+    end
 
-        if spellOffset > 0 then
-            return known
+    if GetSpellName then
+        for spellIndex = 1, 128 do
+            self:AddKnownSpellName(known, GetSpellName(spellIndex, BOOKTYPE_SPELL or "spell"))
+        end
+    end
+
+    for buttonIndex = 1, 12 do
+        local button = _G["SpellButton" .. buttonIndex]
+        local buttonName = button and button:GetName()
+        local nameRegion = buttonName and (_G[buttonName .. "SpellName"] or _G[buttonName .. "Name"])
+        if nameRegion and nameRegion.GetText then
+            self:AddKnownSpellName(known, nameRegion:GetText())
         end
     end
 
     return known
+end
+
+function ClassForge:CaptureAutoClassSpellSnapshot()
+    self.autoClassKnownSpellSnapshot = self:BuildAutoClassSpellSnapshot()
+end
+
+function ClassForge:DetectNewAutoClassSpells()
+    local oldSnapshot = self.autoClassKnownSpellSnapshot or {}
+    local newSnapshot = self:BuildAutoClassSpellSnapshot()
+    local gained = {}
+
+    for spellName in pairs(newSnapshot) do
+        if not oldSnapshot[spellName] then
+            gained[#gained + 1] = spellName
+        end
+    end
+
+    self.autoClassKnownSpellSnapshot = newSnapshot
+    table.sort(gained)
+    if #gained > 0 then
+        self:AutoClassDebug("snapshot gained: " .. table.concat(gained, ", "))
+    end
+    return gained
+end
+
+function ClassForge:MergeRecentAutoClassSpells(spells, reset)
+    if reset or type(self.recentAutoClassSpells) ~= "table" then
+        self.recentAutoClassSpells = {}
+    end
+
+    local added = 0
+    for _, spellName in ipairs(spells or {}) do
+        local before = self:GetKnownSpellSignature(self.recentAutoClassSpells)
+        self:AddKnownSpellName(self.recentAutoClassSpells, spellName)
+        if before ~= self:GetKnownSpellSignature(self.recentAutoClassSpells) then
+            added = added + 1
+        end
+    end
+
+    return added
+end
+
+function ClassForge:GetKnownSpellSet()
+    local known = {}
+    local recentCount = 0
+    for spellName in pairs(self.recentAutoClassSpells or {}) do
+        recentCount = recentCount + 1
+        self:AddKnownSpellName(known, spellName)
+    end
+
+    if recentCount > 0 then
+        return known
+    end
+
+    return self:BuildAutoClassSpellSnapshot()
 end
 
 function ClassForge:GetKnownSpellSignature(known)
@@ -852,56 +906,286 @@ function ClassForge:GetKnownSpellSignature(known)
     return table.concat(names, "|")
 end
 
+function ClassForge:GetDynamicAutoClassPreset(known)
+    local traits = {
+        {
+            key = "ranged",
+            prefix = "Hawkeye",
+            suffix = "Ranger",
+            color = "AAD372",
+            spells = { "Auto Shot", "Arcane Shot", "Steady Shot", "Concussive Shot", "Serpent Sting", "Hunter's Mark", "Aspect of the Hawk" },
+            description = "a ranged skirmisher who reads the battlefield from a distance, turning marks, shots, and clean openings into steady pressure.",
+        },
+        {
+            key = "beast",
+            prefix = "Wildfang",
+            suffix = "Stalker",
+            color = "9ACD32",
+            spells = { "Mongoose Bite", "Raptor Strike", "Aspect of the Monkey", "Tame Beast", "Track Beasts" },
+            description = "a feral opportunist who survives through animal instinct, quick counters, and close-range bite.",
+        },
+        {
+            key = "holy",
+            prefix = "Sunlit",
+            suffix = "Cleric",
+            color = "FFDE59",
+            spells = { "Smite", "Holy Light", "Power Word: Shield", "Power Word: Fortitude", "Renew", "Seal of Righteousness", "Blessing of Might" },
+            description = "a light-bearing caster who folds faith, protection, and punishment into a practical combat rhythm.",
+        },
+        {
+            key = "totem",
+            prefix = "Earthbound",
+            suffix = "Totemist",
+            color = "20B2AA",
+            spells = { "Strength of Earth Totem", "Searing Totem", "Stoneclaw Totem", "Stoneskin Totem", "Earthbind Totem", "Rockbiter Weapon" },
+            description = "a totemic field-shaper who anchors the fight with earth, strength, and summoned elemental pressure.",
+        },
+        {
+            key = "storm",
+            prefix = "Stormbrand",
+            suffix = "Invoker",
+            color = "00BFFF",
+            spells = { "Lightning Bolt", "Earth Shock", "Flame Shock", "Lightning Shield", "Stormstrike", "Flametongue Weapon" },
+            description = "a storm-touched striker who turns shocks, lightning, and weapon-channelled magic into a crackling tempo.",
+        },
+        {
+            key = "shadow",
+            prefix = "Voidscar",
+            suffix = "Hexer",
+            color = "6A0DAD",
+            spells = { "Shadow Word: Pain", "Shadow Bolt", "Corruption", "Curse of Agony", "Drain Soul", "Mind Blast" },
+            description = "a shadow-marked caster who lets pain, curses, and void pressure unravel enemies from the inside.",
+        },
+        {
+            key = "fire",
+            prefix = "Ember",
+            suffix = "Pyrehand",
+            color = "FF4500",
+            spells = { "Fireball", "Fire Blast", "Immolate", "Flame Shock", "Searing Totem", "Flametongue Weapon" },
+            description = "a fire-touched combatant who solves problems with heat, sudden bursts, and burning persistence.",
+        },
+        {
+            key = "arcane",
+            prefix = "Arcane",
+            suffix = "Spellwright",
+            color = "B87333",
+            spells = { "Arcane Missiles", "Arcane Intellect", "Mage Armor", "Polymorph", "Frost Nova" },
+            description = "a precise spellwright who leans on arcane force, control, and clean magical calculation.",
+        },
+        {
+            key = "frost",
+            prefix = "Frostbound",
+            suffix = "Warden",
+            color = "AFEEEE",
+            spells = { "Frostbolt", "Frost Armor", "Frost Nova", "Icy Touch", "Frost Presence" },
+            description = "a cold-blooded controller who uses chill, armor, and slowing pressure to keep the fight on their terms.",
+        },
+        {
+            key = "blade",
+            prefix = "Shadowcut",
+            suffix = "Duelist",
+            color = "2B2B2B",
+            spells = { "Sinister Strike", "Backstab", "Gouge", "Eviscerate", "Slice and Dice", "Stealth", "Sprint" },
+            description = "a close-range duelist who turns quick openings, dirty counters, and sudden blade work into momentum.",
+        },
+        {
+            key = "warrior",
+            prefix = "Iron",
+            suffix = "Mauler",
+            color = "C69B6D",
+            spells = { "Heroic Strike", "Battle Stance", "Victory Rush", "Battle Shout", "Bloodrage", "Thunder Clap", "Sunder Armor" },
+            description = "a weapon-first bruiser who survives on grit, pressure, and the stubborn logic of steel.",
+        },
+        {
+            key = "nature",
+            prefix = "Wildroot",
+            suffix = "Mystic",
+            color = "228B22",
+            spells = { "Moonfire", "Wrath", "Entangling Roots", "Thorns", "Mark of the Wild", "Rejuvenation", "Cat Form" },
+            description = "a nature-woven hybrid who blends wild magic, roots, and instinct into an adaptive fighting style.",
+        },
+        {
+            key = "rune",
+            prefix = "Runeblood",
+            suffix = "Reaver",
+            color = "C41E3A",
+            spells = { "Blood Presence", "Blood Strike", "Plague Strike", "Icy Touch", "Death Coil", "Obliterate", "Death and Decay" },
+            description = "a runic combatant who turns presence, disease, and deathly force into an early engine of pressure.",
+        },
+        {
+            key = "healing",
+            prefix = "Lifebound",
+            suffix = "Mender",
+            color = "00FF98",
+            spells = { "Healing Wave", "Healing Touch", "Greater Heal", "Holy Light", "Renew", "Rejuvenation", "Power Word: Shield" },
+            description = "a restorative survivor who keeps momentum alive through shields, healing, and patient recovery magic.",
+        },
+        {
+            key = "tank",
+            prefix = "Bulwark",
+            suffix = "Vanguard",
+            color = "708090",
+            spells = { "Defensive Stance", "Bear Form", "Righteous Fury", "Devotion Aura", "Shield of Righteousness", "Stoneclaw Totem", "Frost Presence" },
+            description = "a defensive front-liner who draws danger in and answers it with armor, stance, and stubborn presence.",
+        },
+    }
+
+    local matches = {}
+    for _, trait in ipairs(traits) do
+        local count = 0
+        local weight = 0
+        for index, spellName in ipairs(trait.spells) do
+            if known[spellName] then
+                count = count + 1
+                weight = weight + (20 - math.min(index, 15))
+            end
+        end
+        if count > 0 then
+            matches[#matches + 1] = {
+                trait = trait,
+                count = count,
+                weight = weight,
+            }
+        end
+    end
+
+    table.sort(matches, function(a, b)
+        if a.count ~= b.count then
+            return a.count > b.count
+        end
+        if a.weight ~= b.weight then
+            return a.weight > b.weight
+        end
+        return a.trait.key < b.trait.key
+    end)
+
+    if #matches < 2 then
+        return nil
+    end
+
+    local primary = matches[1].trait
+    local secondary = matches[2].trait
+    return {
+        name = primary.prefix .. " " .. secondary.suffix,
+        color = primary.color or secondary.color or "FFD100",
+        description = "The " .. primary.prefix .. " " .. secondary.suffix .. " is " .. primary.description .. " They also carry traces of " .. secondary.description .. " The result is not a traditional class, but a first draft of something stranger taking shape.",
+        dynamic = true,
+    }
+end
+
 function ClassForge:GetAutoClassPresetForKnownSpells(known)
     local bestPreset, bestScore = nil, 0
+    local bestTieValue = -1
+    local fallbackPreset, fallbackScore = nil, 0
+    local fallbackTieValue = -1
+    local signature = self:GetKnownSpellSignature(known)
 
-    for _, preset in ipairs(self.autoClassPresets or {}) do
+    for index, preset in ipairs(self.autoClassPresets or {}) do
         local matchesRequired = true
+        local matchedSpells = {}
+        local matchCount = 0
+
+        local function noteMatch(spellName)
+            if spellName and known[spellName] and not matchedSpells[spellName] then
+                matchedSpells[spellName] = true
+                matchCount = matchCount + 1
+            end
+        end
+
         if preset.required then
             for _, spellName in ipairs(preset.required) do
-                if not known[spellName] then
+                if known[spellName] then
+                    noteMatch(spellName)
+                else
                     matchesRequired = false
                     break
                 end
             end
         end
 
-        local score = matchesRequired and 20 or 0
-        for spellName, weight in pairs(preset.weights or {}) do
-            if known[spellName] then
-                score = score + (tonumber(weight) or 1)
+        local requiredAnyMatches = 0
+        if preset.requiredAny then
+            for _, spellName in ipairs(preset.requiredAny) do
+                if known[spellName] then
+                    requiredAnyMatches = requiredAnyMatches + 1
+                    noteMatch(spellName)
+                end
+            end
+            if requiredAnyMatches == 0 then
+                matchesRequired = false
             end
         end
 
-        if score > bestScore then
+        local score = matchesRequired and 20 or 0
+        for spellName, weight in pairs(preset.weights or {}) do
+            if known[spellName] then
+                noteMatch(spellName)
+                score = score + (tonumber(weight) or 1)
+            end
+        end
+        score = score + (requiredAnyMatches * 3)
+
+        if matchCount < 2 then
+            score = 0
+        end
+
+        local tieValue = 0
+        local tieSource = signature .. "|" .. tostring(index) .. "|" .. tostring(preset.name)
+        for i = 1, string.len(tieSource) do
+            tieValue = (tieValue + string.byte(tieSource, i) * i) % 9973
+        end
+
+        if score > fallbackScore or (score == fallbackScore and score > 0 and tieValue > fallbackTieValue) then
+            fallbackPreset = preset
+            fallbackScore = score
+            fallbackTieValue = tieValue
+        end
+
+        if preset.minScore and score < preset.minScore then
+            score = 0
+        end
+
+        if score > bestScore or (score == bestScore and score > 0 and tieValue > bestTieValue) then
             bestPreset = preset
             bestScore = score
+            bestTieValue = tieValue
         end
     end
 
-    if bestScore <= 0 then
-        return nil
+    if bestScore > 0 then
+        return bestPreset
     end
 
-    return bestPreset
+    if fallbackScore > 0 then
+        return fallbackPreset
+    end
+
+    return self:GetDynamicAutoClassPreset(known)
+end
+
+function ClassForge:ApplyAutoClassFromDetectedSpells(force)
+    local gained = self:DetectNewAutoClassSpells()
+    if #gained > 0 then
+        self:MergeRecentAutoClassSpells(gained, false)
+    end
+
+    return self:ApplyAutoClassFromKnownSpells(force)
 end
 
 function ClassForge:ApplyAutoClassFromKnownSpells(force)
     if not self:IsAutoClassEligible() then
-        return false
-    end
-
-    local characterProfile = self:GetCharacterProfile()
-    if characterProfile.autoClassManualOverride and not force then
+        self:AutoClassDebug("apply skipped; level=" .. tostring(UnitLevel and UnitLevel("player") or "?") .. ", enabled=" .. tostring(self:IsAutoClassEnabled()))
         return false
     end
 
     local known = self:GetKnownSpellSet()
     local preset = self:GetAutoClassPresetForKnownSpells(known)
     if not preset then
+        self:AutoClassDebug("no preset for: " .. (self:GetKnownSpellSignature(known) or ""))
         return false
     end
 
+    local characterProfile = self:GetCharacterProfile()
     local signature = self:GetKnownSpellSignature(known)
     if not force
         and characterProfile.autoClassSignature == signature
@@ -915,6 +1199,8 @@ function ClassForge:ApplyAutoClassFromKnownSpells(force)
     characterProfile.description = preset.description or characterProfile.description or ""
     characterProfile.autoClassSignature = signature
     characterProfile.autoClassManualOverride = false
+
+    self:AutoClassDebug("applied " .. tostring(preset.name) .. " from " .. tostring(signature))
 
     self:RefreshPlayerCache()
     self:BroadcastStartup()
@@ -1019,6 +1305,7 @@ function ClassForge:PLAYER_LOGIN()
     }
 
     self:EnsureCurrentCharacterProfile()
+    self:CaptureAutoClassSpellSnapshot()
     self:ApplyAutoClassFromKnownSpells()
     self:RefreshAutoClassWatcher()
     self:SetupSlashCommands()
@@ -1034,6 +1321,7 @@ function ClassForge:PLAYER_LOGIN()
 end
 
 function ClassForge:PLAYER_ENTERING_WORLD()
+    self:CaptureAutoClassSpellSnapshot()
     self:ApplyAutoClassFromKnownSpells()
     self:RefreshAutoClassWatcher()
     if ShowFriends then
@@ -1056,18 +1344,56 @@ function ClassForge:PLAYER_LEVEL_UP(level)
         return
     end
 
+    self:CaptureAutoClassSpellSnapshot()
     self:ApplyAutoClassFromKnownSpells()
     self:RefreshAutoClassWatcher()
 end
 
 function ClassForge:SPELLS_CHANGED()
-    self:ApplyAutoClassFromKnownSpells()
+    self:QueueAutoClassRefresh(1.5)
     self:RefreshAutoClassWatcher()
 end
 
 function ClassForge:LEARNED_SPELL_IN_TAB()
-    self:ApplyAutoClassFromKnownSpells()
+    self:QueueAutoClassRefresh(1.5)
     self:RefreshAutoClassWatcher()
+end
+
+function ClassForge:CHAT_MSG_SYSTEM(message)
+    local text = self:Trim(message)
+    if text == "" then
+        return
+    end
+
+    if string.find(text, "You have learned a new", 1, true) then
+        self.recentAutoClassSpells = self.recentAutoClassSpells or {}
+        local spellName = string.match(text, "^You have learned a new ability:%s*(.+)$")
+            or string.match(text, "^You have learned a new spell:%s*(.+)$")
+        if spellName then
+            local now = GetTime and GetTime() or time()
+            local resetBurst = false
+            if not self.recentAutoClassLastLearnedTime or (now - self.recentAutoClassLastLearnedTime) > 2 then
+                resetBurst = true
+            end
+            self.recentAutoClassLastLearnedTime = now
+
+            local spellCount = 0
+            for _ in pairs(self.recentAutoClassSpells or {}) do
+                spellCount = spellCount + 1
+            end
+            self:MergeRecentAutoClassSpells({ spellName }, resetBurst or spellCount >= 4)
+            self:AutoClassDebug("learned: " .. tostring(spellName))
+
+            spellCount = 0
+            for _ in pairs(self.recentAutoClassSpells or {}) do
+                spellCount = spellCount + 1
+            end
+            if spellCount >= 2 then
+                self:ApplyAutoClassFromKnownSpells(true)
+            end
+        end
+        self:QueueAutoClassRefresh(1.5)
+    end
 end
 
 function ClassForge:GROUP_ROSTER_UPDATE()
