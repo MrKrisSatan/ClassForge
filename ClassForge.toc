@@ -2,7 +2,7 @@
 ## Title: ClassForge
 ## Notes: WotLK 3.3.5a custom class identities shared between addon users
 ## Author: MrKrisSatan + ChatGPT
-## Version: 3.6.5
+## Version: 3.6.6
 ## SavedVariables: ClassForgeDB, ClassForgeCache
 
 ClassForge.lua

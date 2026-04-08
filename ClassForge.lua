@@ -2,7 +2,7 @@ ClassForge = ClassForge or {}
 
 ClassForge.name = "ClassForge"
 ClassForge.prefix = "CLASSFORGE"
-ClassForge.version = "3.6.5"
+ClassForge.version = "3.6.6"
 ClassForge.dbVersion = 10
 ClassForge.homepage = "https://github.com/MrKrisSatan/ClassForge"
 ClassForge.releasesPage = "https://github.com/MrKrisSatan/ClassForge/releases"
@@ -1163,7 +1163,8 @@ function ClassForge:GetAutoClassPresetForKnownSpells(known)
         end
         score = score + (requiredAnyMatches * 3)
 
-        if matchCount < 2 then
+        local requiredMatchCount = tonumber(preset.minMatches) or 2
+        if matchCount < requiredMatchCount then
             score = 0
         end
 

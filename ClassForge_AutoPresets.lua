@@ -319,7 +319,187 @@ local dropdownAutoClassPresets = {
     { name = "Doom Harbinger", color = "800000", spells = { "Shadow Bolt", "Curse of Agony", "Death and Decay", "Death Coil", "Immolate", "Fear" }, description = "A level-one doom harbinger interpretation, the Doom Harbinger carries shadow, flame, fear, and prophecy-of-ruin energy." },
 }
 
-for _, preset in ipairs(dropdownAutoClassPresets) do
+local supplementalNamedAutoClassPresets = {
+    { name = "Warrior", color = "C69B6D", spells = { "Battle Stance", "Heroic Strike", "Battle Shout", "Victory Rush" }, description = "A level-one warrior interpretation, the Warrior turns stance, shout, and weapon pressure into reliable front-line momentum." },
+    { name = "Protector", color = "708090", spells = { "Defensive Stance", "Power Word: Shield", "Devotion Aura", "Hand of Protection" }, description = "A level-one protector interpretation, the Protector reads as a shield-first defender who survives by layering wards, aura, and defensive posture." },
+    { name = "Champion", color = "FFDE59", spells = { "Blessing of Might", "Crusader Strike", "Seal of Righteousness", "Battle Shout" }, description = "A level-one champion interpretation, the Champion uses blessing, seal, shout, and conviction to look bigger than the roll should allow." },
+    { name = "Devastator", color = "FF4500", spells = { "Thunder Clap", "Heroic Strike", "Death and Decay", "Fire Blast" }, description = "A level-one devastator interpretation, the Devastator is built around loud impact, brutal follow-through, and damage that refuses to stay tidy." },
+    { name = "Weaponmaster", color = "B87333", spells = { "Sinister Strike", "Heroic Strike", "Raptor Strike", "Crusader Strike" }, description = "A level-one weaponmaster interpretation, the Weaponmaster turns any blade, claw, or oath-strike into a disciplined killing rhythm." },
+    { name = "Knight", color = "F48CBA", spells = { "Seal of Righteousness", "Crusader Strike", "Devotion Aura", "Hammer of Justice" }, description = "A level-one knight interpretation, the Knight mixes holy seals, close-range judgment, and formal defensive discipline." },
+    { name = "Defender", color = "708090", spells = { "Defensive Stance", "Sunder Armor", "Shield Block", "Taunt" }, description = "A level-one defender interpretation, the Defender exists to hold the line, strip armor, and make enemies pay attention." },
+    { name = "Lightbringer", color = "FFDE59", spells = { "Holy Light", "Smite", "Seal of Righteousness", "Blessing of Might" }, description = "A level-one lightbringer interpretation, the Lightbringer answers danger with radiant force, healing, and righteous pressure." },
+    { name = "Justicar", color = "F48CBA", spells = { "Hammer of Justice", "Judgement of Light", "Seal of Righteousness", "Crusader Strike" }, description = "A level-one justicar interpretation, the Justicar turns stun, judgment, seal, and crusader discipline into one sentence of punishment." },
+    { name = "Sentinel", color = "AAD372", spells = { "Aspect of the Hawk", "Hunter's Mark", "Devotion Aura", "Auto Shot" }, description = "A level-one sentinel interpretation, the Sentinel keeps the field watched, marked, and covered from a disciplined distance." },
+    { name = "Reaver", color = "8B0000", spells = { "Blood Strike", "Heroic Strike", "Mongoose Bite", "Stormstrike" }, description = "A level-one reaver interpretation, the Reaver is all forward motion, hard contact, and ugly weapon pressure." },
+    { name = "Boneguard", color = "F5F5DC", spells = { "Death Coil", "Shield Block", "Power Word: Fortitude", "Resurrection" }, description = "A level-one boneguard interpretation, the Boneguard treats death as close company and defense as a sacred refusal." },
+    { name = "Revenant", color = "4B5320", spells = { "Death Coil", "Unholy Presence", "Shadow Bolt", "Death and Decay" }, description = "A level-one revenant interpretation, the Revenant moves like something that already died and decided the fight was not finished." },
+    { name = "Bloodletter", color = "8B0000", spells = { "Blood Strike", "Blood Presence", "Rend", "Blood Boil" }, description = "A level-one bloodletter interpretation, the Bloodletter makes the battlefield red through pressure, presence, and cruel openings." },
+    { name = "Berserker", color = "C41E3A", spells = { "Bloodrage", "Battle Stance", "Heroic Strike", "Victory Rush" }, description = "A level-one berserker interpretation, the Berserker feeds on rage, momentum, and the next target in reach." },
+    { name = "Rogue", color = "FFF468", spells = { "Stealth", "Sinister Strike", "Backstab", "Evasion" }, description = "A level-one rogue interpretation, the Rogue wins through unfair openings, quick blades, and just enough escape to make it look intentional." },
+    { name = "Phantom", color = "2B2B2B", spells = { "Stealth", "Fade", "Shadow Bolt", "Gouge" }, description = "A level-one phantom interpretation, the Phantom slips between attention and shadow before the enemy realizes the fight began." },
+    { name = "Shadow", color = "3B0A45", spells = { "Shadow Word: Pain", "Shadow Bolt", "Stealth", "Corruption" }, description = "A level-one shadow interpretation, the Shadow identity forms when darkness is both the approach and the wound left behind." },
+    { name = "Bladesmith", color = "B87333", spells = { "Rockbiter Weapon", "Flametongue Weapon", "Sinister Strike", "Sunder Armor" }, description = "A level-one bladesmith interpretation, the Bladesmith treats the weapon as a craft project that happens to scream." },
+    { name = "Scrapper", color = "C69B6D", spells = { "Gouge", "Mongoose Bite", "Raptor Strike", "Thunder Clap" }, description = "A level-one scrapper interpretation, the Scrapper wins through elbows, bites, dirty timing, and whatever works first." },
+    { name = "Mage", color = "3FC7EB", spells = { "Frostbolt", "Fireball", "Arcane Missiles", "Arcane Intellect" }, description = "A level-one mage interpretation, the Mage appears when frost, fire, arcane focus, and raw spellcraft dominate the roll." },
+    { name = "Pyromancer", color = "FF4500", spells = { "Fireball", "Fire Blast", "Immolate", "Flame Shock" }, description = "A level-one pyromancer interpretation, the Pyromancer does not solve problems so much as raise the temperature until they become ash." },
+    { name = "Aeromancer", color = "00BFFF", spells = { "Lightning Bolt", "Earth Shock", "Arcane Missiles", "Concussive Shot" }, description = "A level-one aeromancer interpretation, the Aeromancer moves through shock, pressure, and bright force like weather with a grudge." },
+    { name = "Terramancer", color = "B87333", spells = { "Earthbind Totem", "Strength of Earth Totem", "Stoneskin Totem", "Rockbiter Weapon" }, description = "A level-one terramancer interpretation, the Terramancer lets stone, binding, and earth-strength decide where the fight is allowed to happen." },
+    { name = "Hydromancer", color = "20B2AA", spells = { "Healing Wave", "Frostbolt", "Frost Nova", "Conjure Water" }, description = "A level-one hydromancer interpretation, the Hydromancer bends water into recovery, cold control, and patient pressure." },
+    { name = "Ranger", color = "AAD372", spells = { "Auto Shot", "Hunter's Mark", "Arcane Shot", "Track Beasts" }, description = "A level-one ranger interpretation, the Ranger tracks, marks, and ends the fight from the lane they chose before anyone else noticed it." },
+    { name = "Medicinist", color = "00FF98", spells = { "Healing Wave", "Renew", "Holy Light", "Purify" }, description = "A level-one medicinist interpretation, the Medicinist is practical recovery, clean hands, and emergency answers under pressure." },
+    { name = "Scout", color = "AAD372", spells = { "Track Humanoids", "Track Beasts", "Stealth", "Sprint" }, description = "A level-one scout interpretation, the Scout survives by seeing first, moving first, and not being where trouble expected." },
+    { name = "Animist", color = "228B22", spells = { "Tame Beast", "Mark of the Wild", "Thorns", "Aspect of the Monkey" }, description = "A level-one animist interpretation, the Animist speaks in instincts, beasts, and small wild bargains." },
+    { name = "Marksman", color = "AAD372", spells = { "Auto Shot", "Steady Shot", "Arcane Shot", "Hunter's Mark" }, description = "A level-one marksman interpretation, the Marksman is a clean line, a marked target, and a shot that arrives before regret." },
+    { name = "Druid", color = "FF7C0A", spells = { "Cat Form", "Moonfire", "Rejuvenation", "Mark of the Wild" }, description = "A level-one druid interpretation, the Druid shifts between claw, moonlight, healing, and the old green rules of the world." },
+    { name = "Sage", color = "7DF9FF", spells = { "Arcane Intellect", "Smite", "Wrath", "Mind Blast" }, description = "A level-one sage interpretation, the Sage turns knowledge into force and treats every school of magic as a useful footnote." },
+    { name = "Mender", color = "00FF98", spells = { "Renew", "Healing Touch", "Healing Wave", "Holy Light" }, description = "A level-one mender interpretation, the Mender keeps life stitched together through every kind of early healing the roll can offer." },
+    { name = "Naturist", color = "228B22", spells = { "Entangling Roots", "Thorns", "Mark of the Wild", "Wrath" }, description = "A level-one naturist interpretation, the Naturist lets roots, thorns, and green wrath argue on their behalf." },
+    { name = "Magus", color = "9932CC", spells = { "Arcane Missiles", "Frostbolt", "Fireball", "Arcane Intellect" }, description = "A level-one magus interpretation, the Magus is an early study in making several kinds of magic equally inconvenient." },
+    { name = "Cleric", color = "FFFFFF", spells = { "Smite", "Holy Light", "Power Word: Fortitude", "Renew" }, description = "A level-one cleric interpretation, the Cleric balances faith, punishment, and care in one bright pattern." },
+    { name = "Restorer", color = "00FF98", spells = { "Rejuvenation", "Healing Touch", "Renew", "Greater Heal" }, description = "A level-one restorer interpretation, the Restorer is a promise that damage can be answered, slowly or all at once." },
+    { name = "Theurgist", color = "FFDE59", spells = { "Smite", "Lightning Bolt", "Moonfire", "Shadow Word: Pain" }, description = "A level-one theurgist interpretation, the Theurgist pulls divine, lunar, storm, and shadow signs into one volatile rite." },
+    { name = "Prelate", color = "F48CBA", spells = { "Devotion Aura", "Blessing of Might", "Holy Light", "Power Word: Shield" }, description = "A level-one prelate interpretation, the Prelate leads by blessing, shielding, and refusing to let the line collapse." },
+    { name = "Watcher", color = "4169E1", spells = { "Hunter's Mark", "Track Humanoids", "Aspect of the Hawk", "Shadow Word: Pain" }, description = "A level-one watcher interpretation, the Watcher marks the enemy, reads the field, and lets patient pressure do the rest." },
+    { name = "Necromancer", color = "2F4F4F", spells = { "Death Coil", "Death and Decay", "Shadow Bolt", "Summon Voidwalker" }, description = "A level-one necromancer interpretation, the Necromancer treats shadow, death, and borrowed bodies as the beginning of a proper education." },
+    { name = "Necrotomist", color = "4B5320", spells = { "Blood Boil", "Plague Strike", "Corruption", "Drain Soul" }, description = "A level-one necrotomist interpretation, the Necrotomist studies decay closely enough that enemies become test subjects." },
+    { name = "Bonemender", color = "F5F5DC", spells = { "Death Strike", "Renew", "Death Coil", "Resurrection" }, description = "A level-one bonemender interpretation, the Bonemender patches life and death together with alarming confidence." },
+    { name = "Warlock", color = "8788EE", spells = { "Shadow Bolt", "Corruption", "Curse of Agony", "Life Tap" }, description = "A level-one warlock interpretation, the Warlock forms from shadow, curses, soul bargains, and bad ideas that work." },
+    { name = "Plaguebringer", color = "556B2F", spells = { "Plague Strike", "Blood Boil", "Corruption", "Curse of Agony" }, description = "A level-one plaguebringer interpretation, the Plaguebringer wins by making time, breath, and flesh turn against the enemy." },
+    { name = "Seer", color = "4169E1", spells = { "Mind Blast", "Arcane Intellect", "Shadow Word: Pain", "Moonfire" }, description = "A level-one seer interpretation, the Seer reads bright and dark signs, then weaponizes the answer." },
+    { name = "Vaticinator", color = "FFD700", spells = { "Smite", "Mind Blast", "Power Word: Fortitude", "Arcane Intellect" }, description = "A level-one vaticinator interpretation, the Vaticinator sounds like prophecy and hits like a conclusion." },
+    { name = "Mesmerist", color = "9932CC", spells = { "Polymorph", "Fear", "Gouge", "Frost Nova" }, description = "A level-one mesmerist interpretation, the Mesmerist wins by making enemies lose time, nerve, shape, or balance." },
+    { name = "Monk", color = "00FF98", spells = { "Battle Stance", "Evasion", "Mongoose Bite", "Healing Wave" }, description = "A level-one monk interpretation, the Monk is discipline in motion: stance work, evasive footwork, close strikes, and recovery." },
+    { name = "Augur", color = "7DF9FF", spells = { "Lightning Bolt", "Smite", "Earth Shock", "Healing Wave" }, description = "A level-one augur interpretation, the Augur reads the next moment through storm, faith, and the pulse of recovery." },
+    { name = "Soldier", color = "C69B6D", spells = { "Battle Stance", "Heroic Strike", "Charge", "Battle Shout" }, description = "A level-one soldier interpretation, the Soldier is honest steel, loud orders, and being first into the problem." },
+    { name = "Sawbones", color = "A9A9A9", spells = { "Renew", "Healing Touch", "Purify", "Gouge" }, description = "A level-one sawbones interpretation, the Sawbones mixes rough medicine with the kind of bedside manner that starts with a cheap shot." },
+    { name = "Agitator", color = "FF4500", spells = { "Taunt", "Battle Shout", "Curse of Weakness", "Thunder Clap" }, description = "A level-one agitator interpretation, the Agitator makes enemies angry, weaker, and suddenly much easier to manage." },
+    { name = "Wrecker", color = "C41E3A", spells = { "Sunder Armor", "Thunder Clap", "Bloodrage", "Heroic Strike" }, description = "A level-one wrecker interpretation, the Wrecker has one elegant theory: break the armor, break the rhythm, break the target." },
+    { name = "Marauder", color = "8B0000", spells = { "Charge", "Raptor Strike", "Bloodrage", "Mongoose Bite" }, description = "A level-one marauder interpretation, the Marauder closes distance fast and lets appetite handle the rest." },
+    { name = "Engineer", color = "B87333", spells = { "Searing Totem", "Stoneclaw Totem", "Conjure Water", "Arcane Intellect" }, description = "A level-one engineer interpretation, the Engineer turns improvised tools, totems, and clever preparation into battlefield machinery." },
+    { name = "Inventor", color = "FFD700", spells = { "Searing Totem", "Arcane Missiles", "Shield of Righteousness", "Conjure Food" }, description = "A level-one inventor interpretation, the Inventor is not entirely sure why the device works, only that it does." },
+    { name = "Scientist", color = "3FC7EB", spells = { "Arcane Intellect", "Polymorph", "Frost Nova", "Fire Blast" }, description = "A level-one scientist interpretation, the Scientist performs experiments in control, temperature, and consequences." },
+    { name = "Machinist", color = "708090", spells = { "Auto Shot", "Steady Shot", "Searing Totem", "Shield Block" }, description = "A level-one machinist interpretation, the Machinist trusts repeatable output, stable bracing, and mechanisms that keep firing." },
+    { name = "Tactician", color = "4169E1", spells = { "Hunter's Mark", "Battle Shout", "Defensive Stance", "Earthbind Totem" }, description = "A level-one tactician interpretation, the Tactician wins by deciding where everyone stands before anyone else understands why." },
+}
+
+local additionalAutoClassNames = {
+    "Templar", "Hospitaler", "Knight Mendicant", "Combat Medic", "Warrior Chirurgeon", "Knight Physic", "Flower Knight", "Flesh Shaper",
+    "Warlord", "Banneret", "Cavalier", "Warleader", "Champion", "Captain", "Swordmage", "Bladesinger",
+    "Eldritch Knight", "Abjurant Champion", "Runeknight", "Witchblade", "Witchknight", "Shieldmage", "Force Mage", "Barrier Mage",
+    "Abjurer", "Warden", "Abjurer", "Acrobat", "Adventurer", "Aeromancer", "Aeronaut", "Alchemist",
+    "Alienist", "Animist", "Antihero", "Apothecary", "Arbalester", "Arbiter", "Arcanist", "Archeologist",
+    "Archer", "Armiger", "Armorer", "Artificer", "Assassin", "Astrologer", "Avenger", "Bandit",
+    "Barbarian", "Bard", "Battlemage", "Beastlord", "Beastrider", "Beguiler", "Berserker", "Binder",
+    "Bishop", "Blackguard", "Blacksmith", "Bladesinger", "Blighter", "Bloodmage", "Bravo", "Brawler",
+    "Brewmeister", "Brigand", "Cavalier", "Cavalryman", "Cestus", "Champion", "Channeler", "Charioteer",
+    "Chevalier", "Chirurgeon", "Chronomancer", "Cleric", "Conjurer", "Corsair", "Crossbowman", "Crusader",
+    "Cursebearer", "Deathknight", "Defender", "Demolitionist", "Demoniac", "Dervish", "Diabolist", "Diplomat",
+    "Dirgesinger", "Diviner", "Djinncaller", "Doomsayer", "Dragonrider", "Dragoon", "Dreadnaught", "Dreamwalker",
+    "Druid", "Duelist", "Earthspeaker", "Elementalist", "Empath", "Enchanter", "Engineer", "Evoker",
+    "Executioner", "Exile", "Exorcist", "Explorer", "Falconer", "Fearmonger", "Fencer", "Fighter",
+    "Firedancer", "Fleshwarper", "Forrester", "Frostmage", "Fusilier", "Gadgeteer", "Geomancer", "Gladiator",
+    "Grappler", "Gravecaller", "Guardian", "Guerilla", "Gunslinger", "Gypsy", "Harbinger", "Harrier",
+    "Haruspex", "Healer", "Heirophant", "Herald", "Herbalist", "Hermit", "Hero", "Hexmage",
+    "Highwayman", "Hivemaster", "Hoodwink", "Hospitalier", "Houndmaster", "Hunter", "Hydromancer", "Hymnist",
+    "Hypnotist", "Illusionist", "Incanter", "Infiltrator", "Inquisitor", "Invoker", "Jester", "Jinx",
+    "Juggernaut", "Justicar", "Kensai", "Knight", "Lancer", "Lasher", "Legionnaire", "Lich",
+    "Lightbringer", "Machinist", "Mageknight", "Magician", "Magus", "Malefactor", "Malus", "Maniac",
+    "Marauder", "Mariner", "Marshal", "Masque", "Mastermind", "Medium", "Mentalist", "Mercenary",
+    "Merchant", "Mindbender", "Miner", "Minstrel", "Monk", "Mountaineer", "Musketeer", "Mysterion",
+    "Mystic", "Necromancer", "Nethermancer", "Ninja", "Noble", "Nomad", "Occultist", "Oracle",
+    "Outcast", "Outlaw", "Outrider", "Paladin", "Paragon", "Pathfinder", "Piper", "Pirate",
+    "Plaguemancer", "Planeswalker", "Poisoner", "Priest", "Prophet", "Psionicist", "Psychic", "Pugilist",
+    "Pyromancer", "Qabalist", "Raider", "Raindancer", "Rake", "Ranger", "Ratcatcher", "Reaver",
+    "Riddler", "Rifleman", "Ritualist", "Rogue", "Ronin", "Royal", "Runic", "Saboteur",
+    "Sage", "Saint", "Samurai", "Sandman", "Sapper", "Savage", "Savant", "Scavenger",
+    "Scholar", "Scout", "Scrier", "Seasinger", "Sensei", "Sentinel", "Shadowmancer", "Shaman",
+    "Shapeshifter", "Sheriff", "Shieldbearer", "Sibyl", "Siegemaster", "Siren", "Skald", "Skirmisher",
+    "Skycaptain", "Slavemaster", "Slayer", "Slimelord", "Sneak", "Sniper", "Soldier", "Soothsayer",
+    "Sorcerer", "Soulblade", "Spearman", "Spellbinder", "Spellbreaker", "Spellknife", "Spiritualist", "Spy",
+    "Stalker", "Stormlord", "Strategist", "Strider", "Summoner", "Swashbuckler", "Swordsman", "Tactician",
+    "Taskmaster", "Telepath", "Templar", "Thaumaturgist", "Theurge", "Thief", "Thrall", "Tinkerer",
+    "Tormentor", "Totemist", "Transmogrifist", "Transmuter", "Trapsmith", "Trickster", "Ur-Priest", "Valkyrie",
+    "Vanguard", "Viking", "Vindicator", "Vizier", "Voidcaller", "Wanderer", "Warden", "Warlock",
+    "Warlord", "Warpriest", "Warrior", "Weaponmaster", "Wilder", "Windcaller", "Witch", "Witchdoctor",
+    "Wizard", "Wonderworker", "Wormtongue", "Wyrd", "Wyrmcaller", "Zealot", "Anti-paladin", "Lurk",
+    "Psion", "Soulknife", "Myrmydon", "Soulknife", "Sohei", "Inkyo", "Oathsworn", "Mage-Blade",
+    "Harrier", "Survivor", "Algai'd'siswai", "Defender", "Combatant", "Pursuer", "Scoundrel", "Lasserator",
+    "Beguiler", "Deathmaster", "Duskblade", "Hexblade", "Spellthief", "Psithief", "Incarnate", "Shukenja",
+    "Kensai", "Aegis", "Angakkuq", "Angler", "Aquanaut", "Cryptic", "Dread", "Kahuna",
+    "Marksman", "Vitalist", "Abbot", "Aethernaut", "Archmage", "Bookbinder", "Bounty Hunter", "Cartographer",
+    "Centurian", "Charlatan", "Chasseur", "Constabulary", "Consular", "Crimelord", "Demagogue", "Demonologist",
+    "Disciple", "Dragonslayer", "Grave Robber", "Hedge Mage", "Impersonator", "Information Broker", "Investigator", "Kidnapper",
+    "Martial Artist", "Meretrix", "Mesmerist", "Oceaneer", "Percamenarius", "Privateer", "Runecarver", "Scribe",
+    "Slaver", "Snakecharmer", "Theocrat", "Tribesman", "Vigilante", "Bushi", "Wu-jen", "Luckbringer",
+    "Jotun", "Onmyoji", "Rog-kalem", "Bone-breaker", "Mushakemono",
+}
+
+local autoClassPresetNames = {}
+for _, preset in ipairs(ClassForge.autoClassPresets or {}) do
+    if preset.name then
+        autoClassPresetNames[preset.name] = true
+    end
+end
+
+local generatedNamedAutoClassProfiles = {
+    { color = "708090", roleFocus = "tank", keywords = { "armor", "armiger", "barrier", "defender", "guard", "guardian", "shield", "warden", "vanguard" }, spells = { "Defensive Stance", "Sunder Armor", "Devotion Aura", "Shield of Righteousness" }, description = "leans into protection, pressure, and the stubborn craft of staying in the enemy's way." },
+    { color = "00FF98", roleFocus = "healer", keywords = { "chirurgeon", "cleric", "healer", "hospital", "medic", "mender", "physic", "priest", "restorer", "sawbones", "vitalist" }, spells = { "Holy Light", "Renew", "Power Word: Shield", "Healing Wave" }, description = "turns the first roll into triage, recovery, and the kind of calm that keeps allies upright." },
+    { color = "228B22", roleFocus = "healer", keywords = { "animist", "druid", "flower", "forest", "herbalist", "nature", "shapeshifter", "wild", "wilder" }, spells = { "Rejuvenation", "Healing Touch", "Mark of the Wild", "Thorns" }, description = "draws on wild recovery, living wards, and the old green instinct to endure." },
+    { color = "AAD372", roleFocus = "damage", keywords = { "arbalester", "archer", "crossbow", "falconer", "fusilier", "gunslinger", "hunter", "marksman", "musketeer", "ranger", "rifle", "sniper" }, spells = { "Auto Shot", "Hunter's Mark", "Arcane Shot", "Steady Shot" }, description = "favors distance, marks, and clean ranged pressure before the fight can fully close." },
+    { color = "FFF468", roleFocus = "damage", keywords = { "assassin", "bandit", "brigand", "duelist", "fencer", "ninja", "rake", "rogue", "sneak", "thief" }, spells = { "Stealth", "Backstab", "Sinister Strike", "Evasion" }, description = "solves problems with unfair openings, quick hands, and a very practical exit plan." },
+    { color = "00BFFF", roleFocus = "damage", keywords = { "aero", "djinn", "raindancer", "seasinger", "sky", "storm", "thunder", "wind" }, spells = { "Lightning Bolt", "Earth Shock", "Flame Shock", "Searing Totem" }, description = "turns air, storm, and sudden impact into a rhythm that keeps enemies off balance." },
+    { color = "FF4500", roleFocus = "damage", keywords = { "blast", "demolition", "dragon", "ember", "fire", "flame", "pyro", "wrecker" }, spells = { "Fireball", "Fire Blast", "Immolate", "Flame Shock" }, description = "prefers the direct argument: heat, force, and a battlefield that remembers where they stood." },
+    { color = "3FC7EB", roleFocus = "damage", keywords = { "arcane", "archmage", "frost", "hydro", "ice", "mage", "magus", "wizard" }, spells = { "Frostbolt", "Arcane Missiles", "Frost Nova", "Arcane Intellect" }, description = "works through spell discipline, control, and bursts of practiced magical force." },
+    { color = "8788EE", roleFocus = "damage", keywords = { "curse", "demon", "diabol", "hex", "malefactor", "occult", "warlock", "witch" }, spells = { "Shadow Bolt", "Corruption", "Curse of Agony", "Drain Soul" }, description = "takes the dark bargain early, then lets curses and shadow do the patient work." },
+    { color = "4B5320", roleFocus = "damage", keywords = { "bone", "death", "grave", "lich", "necro", "plague", "revenant" }, spells = { "Death Coil", "Death and Decay", "Plague Strike", "Blood Strike" }, description = "carries death magic as a practical tool and treats decay as battlefield leverage." },
+    { color = "C69B6D", roleFocus = "damage", keywords = { "barbarian", "brawler", "combatant", "fighter", "gladiator", "grappler", "pugilist", "soldier", "warrior" }, spells = { "Battle Stance", "Heroic Strike", "Victory Rush", "Bloodrage" }, description = "makes a simple promise: step forward, hit hard, and turn momentum into survival." },
+    { color = "B87333", roleFocus = "generic", keywords = { "alchemist", "artificer", "engineer", "gadget", "inventor", "machinist", "scientist", "tinker" }, spells = { "Searing Totem", "Stoneclaw Totem", "Conjure Water", "Arcane Intellect" }, description = "uses improvised tools, clever preparation, and one or two ideas that probably should not work." },
+    { color = "9932CC", roleFocus = "generic", keywords = { "beguiler", "hypnotist", "illusion", "jester", "mesmer", "riddler", "trickster" }, spells = { "Gouge", "Polymorph", "Fear", "Frost Nova" }, description = "wins by confusing the shape, timing, and confidence of whatever is standing opposite them." },
+    { color = "F48CBA", roleFocus = "tank", keywords = { "cavalier", "champion", "chevalier", "crusader", "justicar", "knight", "paladin", "templar", "vindicator" }, spells = { "Righteous Fury", "Hand of Protection", "Hammer of Justice", "Seal of Righteousness" }, description = "carries oath, armor, and judgment into the first roll like a banner that bites back." },
+    { color = "FF7C0A", roleFocus = "damage", keywords = { "beast", "cat", "feral", "lancer", "lasher", "marauder", "raider", "reaver", "savage" }, spells = { "Cat Form", "Claw", "Raptor Strike", "Mongoose Bite" }, description = "moves by instinct, closes quickly, and lets tooth, claw, or steel finish the thought." },
+    { color = "20B2AA", roleFocus = "healer", keywords = { "aqua", "ocean", "sea", "tide", "water" }, spells = { "Healing Wave", "Frostbolt", "Earthbind Totem", "Seal of Wisdom" }, description = "flows between recovery, restraint, and elemental pressure without losing the current." },
+}
+
+local function GetAutoClassNameSeed(name)
+    local seed = 0
+    for index = 1, string.len(name or "") do
+        seed = (seed + (string.byte(name, index) or 0) * index) % 9973
+    end
+    return seed
+end
+
+local function GetGeneratedNamedAutoClassProfile(name)
+    local lowerName = string.lower(name or "")
+
+    for _, profile in ipairs(generatedNamedAutoClassProfiles) do
+        for _, keyword in ipairs(profile.keywords or {}) do
+            if string.find(lowerName, keyword, 1, true) then
+                return profile
+            end
+        end
+    end
+
+    return generatedNamedAutoClassProfiles[(GetAutoClassNameSeed(name) % #generatedNamedAutoClassProfiles) + 1]
+end
+
+local function BuildGeneratedNamedAutoClassPreset(name)
+    local profile = GetGeneratedNamedAutoClassProfile(name)
+
+    return {
+        name = name,
+        color = profile.color,
+        spells = profile.spells,
+        description = "A level-one " .. string.lower(name) .. " interpretation, the " .. name .. " " .. profile.description,
+        minMatches = 3,
+        roleFocus = profile.roleFocus,
+    }
+end
+
+local function AddNamedAutoClassPreset(preset)
+    if not preset or not preset.name or autoClassPresetNames[preset.name] then
+        return false
+    end
+
     local weights = {}
     for index, spellName in ipairs(preset.spells or {}) do
         weights[spellName] = math.max(3, 8 - math.floor((index - 1) / 2))
@@ -332,11 +512,35 @@ for _, preset in ipairs(dropdownAutoClassPresets) do
         requiredAny = preset.spells,
         weights = weights,
         minScore = 26,
-        dropdownPreset = true,
+        minMatches = preset.minMatches or 3,
+        dropdownPreset = preset.dropdownPreset,
+        namedPreset = true,
+        roleFocus = preset.roleFocus,
     }
+
+    autoClassPresetNames[preset.name] = true
+    return true
 end
 
-local targetAutoClassPresetCount = 500
+for _, preset in ipairs(dropdownAutoClassPresets) do
+    preset.dropdownPreset = true
+    AddNamedAutoClassPreset(preset)
+end
+
+for _, preset in ipairs(supplementalNamedAutoClassPresets) do
+    AddNamedAutoClassPreset(preset)
+end
+
+for _, name in ipairs(additionalAutoClassNames) do
+    AddNamedAutoClassPreset(BuildGeneratedNamedAutoClassPreset(name))
+end
+
+local targetAutoClassRoleCounts = {
+    tank = 300,
+    healer = 300,
+    damage = 300,
+    generic = 300,
+}
 
 local generatedAutoClassNamingPrefixes = {
     "Fencer",
@@ -396,34 +600,108 @@ local function GetGeneratedAutoClassName(theme, form, themeIndex, formIndex)
     return prefix .. " " .. suffix
 end
 
-for themeIndex, theme in ipairs(generatedAutoClassThemes) do
-    if #ClassForge.autoClassPresets >= targetAutoClassPresetCount then
-        break
+local tankAutoClassThemes = {
+    { suffix = "Ironwall", color = "708090", spells = { "Defensive Stance", "Sunder Armor", "Shield Block", "Devotion Aura" }, description = "front-line defender who turns stance, armor pressure, and steady discipline into a wall that refuses to move." },
+    { suffix = "Stonehide", color = "556B2F", spells = { "Bear Form", "Stoneskin Totem", "Thorns", "Mark of the Wild" }, description = "wild protector who layers hide, bark, stone, and thorns into stubborn survival." },
+    { suffix = "Sunshield", color = "F48CBA", spells = { "Righteous Fury", "Devotion Aura", "Shield of Righteousness", "Holy Light" }, description = "radiant shield-bearer who makes faith, armor, and holy threat feel like one heavy oath." },
+    { suffix = "Thunderwall", color = "1E90FF", spells = { "Thunder Clap", "Lightning Shield", "Earth Shock", "Stoneclaw Totem" }, description = "storm-braced sentinel who answers pressure with thunder, shock, and crackling retaliation." },
+    { suffix = "Bloodward", color = "8B0000", spells = { "Blood Presence", "Blood Strike", "Death Strike", "Death and Decay" }, description = "crimson bulwark who turns blood rites and grim runes into a hard point on the battlefield." },
+    { suffix = "Frostguard", color = "AFEEEE", spells = { "Frost Presence", "Icy Touch", "Frost Armor", "Frost Nova" }, description = "cold guardian who slows the fight down until every enemy has to break against them." },
+    { suffix = "Gravebastion", color = "4B5320", spells = { "Demon Skin", "Power Word: Fortitude", "Death and Decay", "Curse of Weakness" }, description = "grave-bound anchor who survives through grim endurance, curses, and a refusal to fall cleanly." },
+    { suffix = "Rockbreaker", color = "B87333", spells = { "Rockbiter Weapon", "Strength of Earth Totem", "Sunder Armor", "Heroic Strike" }, description = "earth-weighted bruiser who holds attention by hitting like a tool meant for breaking stone." },
+    { suffix = "Wildbulwark", color = "228B22", spells = { "Bear Form", "Growl", "Demoralizing Roar", "Maul" }, description = "feral defender who uses presence, roar, and raw animal weight to make the enemy commit." },
+    { suffix = "Oathplate", color = "FFDE59", spells = { "Blessing of Might", "Hand of Protection", "Devotion Aura", "Seal of Righteousness" }, description = "oath-armored protector who uses blessing, seal, and discipline to hold the line." },
+    { suffix = "Ashbastion", color = "A9A9A9", spells = { "Demon Skin", "Frost Armor", "Thorns", "Consecration" }, description = "ash-clad warder who turns every layer of protection into punishment for attackers." },
+    { suffix = "Tidewall", color = "20B2AA", spells = { "Earthbind Totem", "Healing Wave", "Stoneclaw Totem", "Lightning Shield" }, description = "tide-stable guard who controls space, absorbs attention, and restores enough to keep standing." },
+    { suffix = "Voidbulwark", color = "2F4F4F", spells = { "Power Word: Shield", "Fear", "Demon Skin", "Shadow Word: Pain" }, description = "shadowed shield who makes enemies hesitate before they can even begin to break through." },
+    { suffix = "Boneguard", color = "F5F5DC", spells = { "Shield Block", "Power Word: Fortitude", "Death Coil", "Resurrection" }, description = "bone-marked protector who treats death as a nearby tool rather than a final threat." },
+    { suffix = "Vanguard", color = "C69B6D", spells = { "Battle Stance", "Charge", "Battle Shout", "Victory Rush" }, description = "first-through-the-door fighter who turns momentum, shout, and impact into battlefield control." },
+}
+
+local healerAutoClassThemes = {
+    { suffix = "Lifebloom", color = "00FF98", spells = { "Rejuvenation", "Healing Touch", "Mark of the Wild", "Thorns" }, description = "green-hearted healer who lets nature mend wounds while the thorns remind enemies to stop trying." },
+    { suffix = "Lightwell", color = "FFFFFF", spells = { "Holy Light", "Renew", "Power Word: Fortitude", "Smite" }, description = "bright field medic who mixes holy recovery, faith, and simple punishment into a steady rhythm." },
+    { suffix = "Wisdomtide", color = "20B2AA", spells = { "Healing Wave", "Seal of Wisdom", "Earthbind Totem", "Lightning Bolt" }, description = "flowing healer who balances water, wisdom, control, and sudden elemental reply." },
+    { suffix = "Spiritmender", color = "7FFFD4", spells = { "Renew", "Healing Wave", "Power Word: Shield", "Fade" }, description = "spirit-guided mender who protects, fades back, and lets recovery keep moving." },
+    { suffix = "Suncleric", color = "FFDE59", spells = { "Holy Light", "Blessing of Might", "Seal of Righteousness", "Lay on Hands" }, description = "sunlit cleric who carries last-second miracles and radiant certainty into the first roll." },
+    { suffix = "Graceweaver", color = "F48CBA", spells = { "Greater Heal", "Renew", "Hand of Protection", "Power Word: Shield" }, description = "graceful preserver who wraps allies in shields and answers crisis with decisive healing." },
+    { suffix = "Moonmender", color = "7DF9FF", spells = { "Moonfire", "Rejuvenation", "Healing Touch", "Entangling Roots" }, description = "moon-touched healer who binds space, restores flesh, and punishes with silver light." },
+    { suffix = "Bloodmender", color = "8B0000", spells = { "Blood Presence", "Death Strike", "Renew", "Drain Soul" }, description = "strange crimson healer who steals, spends, and returns vitality in unsettling loops." },
+    { suffix = "Frostsalve", color = "AFEEEE", spells = { "Frost Armor", "Frost Nova", "Holy Light", "Renew" }, description = "cool-headed medic who buys time with frost before sealing the wound." },
+    { suffix = "Shieldchant", color = "4169E1", spells = { "Power Word: Shield", "Mage Armor", "Arcane Intellect", "Renew" }, description = "ward-chanter who treats shields, intellect, and patient recovery as one protective song." },
+    { suffix = "Emberrenew", color = "FF4500", spells = { "Immolate", "Fire Blast", "Healing Wave", "Holy Light" }, description = "ember-bright healer who burns away danger and closes wounds before the smoke clears." },
+    { suffix = "Soulwell", color = "6A0DAD", spells = { "Drain Soul", "Create Healthstone", "Renew", "Power Word: Shield" }, description = "soul-weaving support who turns dark bargains into practical survival." },
+    { suffix = "Starhealer", color = "4169E1", spells = { "Smite", "Moonfire", "Greater Heal", "Power Word: Fortitude" }, description = "celestial healer who reads the fight through omens, light, and carefully timed restoration." },
+    { suffix = "Wildspring", color = "228B22", spells = { "Healing Touch", "Rejuvenation", "Cat Form", "Mark of the Wild" }, description = "wild spring healer who keeps one foot in instinct and the other in restoration." },
+    { suffix = "Totemkeeper", color = "0070DD", spells = { "Healing Wave", "Stoneskin Totem", "Strength of Earth Totem", "Searing Totem" }, description = "totem-bound keeper who turns the field itself into a quiet healing engine." },
+}
+
+local damageAutoClassThemes = {
+    { suffix = "Stormblade", color = "00BFFF", spells = { "Sinister Strike", "Earth Shock", "Flametongue Weapon", "Lightning Bolt" }, description = "storm-cut striker who folds shocks, weapon flame, and clean blade work into one violent tempo." },
+    { suffix = "Shadowcut", color = "3B0A45", spells = { "Backstab", "Shadow Word: Pain", "Shadow Bolt", "Gouge" }, description = "shadow-duelist who opens from an ugly angle and leaves darkness to finish the argument." },
+    { suffix = "Emberknife", color = "FF4500", spells = { "Immolate", "Fire Blast", "Sinister Strike", "Flametongue Weapon" }, description = "close-range burner who turns every cut into a spark and every spark into a problem." },
+    { suffix = "Frostfang", color = "AFEEEE", spells = { "Frostbolt", "Icy Touch", "Mongoose Bite", "Raptor Strike" }, description = "cold-blooded predator who slows prey before closing in with tooth and steel." },
+    { suffix = "Blightspine", color = "556B2F", spells = { "Corruption", "Serpent Sting", "Plague Strike", "Curse of Agony" }, description = "damage-over-time hunter who lets poison, curse, and plague do the patient work." },
+    { suffix = "Moonshot", color = "7DF9FF", spells = { "Arcane Shot", "Moonfire", "Auto Shot", "Hunter's Mark" }, description = "ranged skirmisher who marks the target and threads moonlit shots through the opening." },
+    { suffix = "Runeblade", color = "C41E3A", spells = { "Blood Strike", "Obliterate", "Plague Strike", "Death Coil" }, description = "rune-fed executioner who translates death magic into hard weapon damage." },
+    { suffix = "Hawkshot", color = "AAD372", spells = { "Aspect of the Hawk", "Auto Shot", "Arcane Shot", "Steady Shot" }, description = "disciplined marksman who trusts a clear line, a steady shot, and patience." },
+    { suffix = "Felbrand", color = "8788EE", spells = { "Shadow Bolt", "Immolate", "Curse of Agony", "Life Tap" }, description = "reckless war-caster who pays in life and collects in flame, curse, and shadow." },
+    { suffix = "Thunderreaver", color = "1E90FF", spells = { "Stormstrike", "Thunder Clap", "Earth Shock", "Heroic Strike" }, description = "thunderous bruiser who turns impact and shock into a rolling front of damage." },
+    { suffix = "Venomblade", color = "3B0A45", spells = { "Backstab", "Serpent Sting", "Gouge", "Eviscerate" }, description = "venom-edged opportunist who stacks pain until the finishing cut is obvious." },
+    { suffix = "Starburst", color = "4169E1", spells = { "Arcane Missiles", "Fireball", "Moonfire", "Smite" }, description = "volatile caster who throws bright schools of magic together and trusts the blast." },
+    { suffix = "Plagueheart", color = "4B5320", spells = { "Death and Decay", "Blood Boil", "Corruption", "Flame Shock" }, description = "blight-hearted caster who makes the ground, blood, and air hostile at once." },
+    { suffix = "Arcaneburst", color = "9932CC", spells = { "Arcane Missiles", "Fire Blast", "Mind Blast", "Lightning Bolt" }, description = "burst-minded spellfighter who favors immediate, loud, and difficult-to-ignore answers." },
+    { suffix = "Ironhowl", color = "C69B6D", spells = { "Heroic Strike", "Battle Shout", "Victory Rush", "Rend" }, description = "weapon-forward brawler who turns shout, bleed, and momentum into practical violence." },
+}
+
+local function AddGeneratedAutoClassPreset(category, theme, form, themeIndex, formIndex, categoryOffset)
+    local weights = {}
+    local requiredAny = {}
+    for _, spellName in ipairs(theme.spells) do
+        weights[spellName] = 6
+        requiredAny[#requiredAny + 1] = spellName
+    end
+    for _, spellName in ipairs(form.spells) do
+        weights[spellName] = (weights[spellName] or 0) + 4
+        requiredAny[#requiredAny + 1] = spellName
     end
 
-    for formIndex, form in ipairs(generatedAutoClassForms) do
-        if #ClassForge.autoClassPresets >= targetAutoClassPresetCount then
+    ClassForge.autoClassPresets[#ClassForge.autoClassPresets + 1] = {
+        name = GetGeneratedAutoClassName(theme, form, themeIndex + (categoryOffset or 0), formIndex),
+        color = theme.color,
+        description = "A " .. theme.description .. " " .. form.description,
+        requiredAny = requiredAny,
+        weights = weights,
+        minScore = 23,
+        roleFocus = category,
+    }
+end
+
+local function AddGeneratedAutoClassBucket(category, themes, forms, targetCount, existingCount, categoryOffset)
+    local bucketCount = existingCount or 0
+
+    for themeIndex, theme in ipairs(themes) do
+        if bucketCount >= targetCount then
             break
         end
 
-        local weights = {}
-        local requiredAny = {}
-        for _, spellName in ipairs(theme.spells) do
-            weights[spellName] = 6
-            requiredAny[#requiredAny + 1] = spellName
-        end
-        for _, spellName in ipairs(form.spells) do
-            weights[spellName] = (weights[spellName] or 0) + 4
-            requiredAny[#requiredAny + 1] = spellName
-        end
+        for formIndex, form in ipairs(forms) do
+            if bucketCount >= targetCount then
+                break
+            end
 
-        ClassForge.autoClassPresets[#ClassForge.autoClassPresets + 1] = {
-            name = GetGeneratedAutoClassName(theme, form, themeIndex, formIndex),
-            color = theme.color,
-            description = "A " .. theme.description .. " " .. form.description,
-            requiredAny = requiredAny,
-            weights = weights,
-            minScore = 23,
-        }
+            AddGeneratedAutoClassPreset(category, theme, form, themeIndex, formIndex, categoryOffset)
+            bucketCount = bucketCount + 1
+        end
     end
+
+    return bucketCount
 end
+
+local existingGenericAutoClassCount = #ClassForge.autoClassPresets
+local genericAutoClassTarget = math.max(targetAutoClassRoleCounts.generic, existingGenericAutoClassCount)
+
+AddGeneratedAutoClassBucket("tank", tankAutoClassThemes, generatedAutoClassForms, targetAutoClassRoleCounts.tank, 0, 100)
+AddGeneratedAutoClassBucket("healer", healerAutoClassThemes, generatedAutoClassForms, targetAutoClassRoleCounts.healer, 0, 200)
+AddGeneratedAutoClassBucket("damage", damageAutoClassThemes, generatedAutoClassForms, targetAutoClassRoleCounts.damage, 0, 300)
+AddGeneratedAutoClassBucket("generic", generatedAutoClassThemes, generatedAutoClassForms, genericAutoClassTarget, existingGenericAutoClassCount, 400)
