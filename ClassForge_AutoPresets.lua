@@ -705,3 +705,51 @@ AddGeneratedAutoClassBucket("tank", tankAutoClassThemes, generatedAutoClassForms
 AddGeneratedAutoClassBucket("healer", healerAutoClassThemes, generatedAutoClassForms, targetAutoClassRoleCounts.healer, 0, 200)
 AddGeneratedAutoClassBucket("damage", damageAutoClassThemes, generatedAutoClassForms, targetAutoClassRoleCounts.damage, 0, 300)
 AddGeneratedAutoClassBucket("generic", generatedAutoClassThemes, generatedAutoClassForms, genericAutoClassTarget, existingGenericAutoClassCount, 400)
+
+local function GetUniqueAutoClassPaletteColor(index)
+    local hue = (index * 0.61803398875) % 1
+    local saturation = 0.58 + ((index * 37) % 28) / 100
+    local value = 0.74 + ((index * 53) % 24) / 100
+    local segment = math.floor(hue * 6)
+    local fraction = (hue * 6) - segment
+    local p = value * (1 - saturation)
+    local q = value * (1 - (fraction * saturation))
+    local t = value * (1 - ((1 - fraction) * saturation))
+    local red, green, blue
+
+    segment = segment % 6
+    if segment == 0 then
+        red, green, blue = value, t, p
+    elseif segment == 1 then
+        red, green, blue = q, value, p
+    elseif segment == 2 then
+        red, green, blue = p, value, t
+    elseif segment == 3 then
+        red, green, blue = p, q, value
+    elseif segment == 4 then
+        red, green, blue = t, p, value
+    else
+        red, green, blue = value, p, q
+    end
+
+    return string.format(
+        "%02X%02X%02X",
+        math.floor((red * 255) + 0.5),
+        math.floor((green * 255) + 0.5),
+        math.floor((blue * 255) + 0.5)
+    )
+end
+
+local usedAutoClassColors = {}
+for index, preset in ipairs(ClassForge.autoClassPresets or {}) do
+    local colorIndex = index
+    local color = GetUniqueAutoClassPaletteColor(colorIndex)
+
+    while usedAutoClassColors[color] do
+        colorIndex = colorIndex + 4096
+        color = GetUniqueAutoClassPaletteColor(colorIndex)
+    end
+
+    preset.color = color
+    usedAutoClassColors[color] = true
+end

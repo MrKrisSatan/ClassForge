@@ -421,9 +421,53 @@ function ClassForge:CreateOptionsPanel()
         ["Wildheart"] = [[A forest-born champion led by instinct and green fury, the Wildheart fights with the stubborn vitality of root and fang. They endure, recover, and strike with the unpolished savagery of life refusing to yield. To face a Wildheart is to battle the part of nature that survives every axe.]],
         ["Doom Harbinger"] = [[A red-cloaked herald of final hours, the Doom Harbinger carries prophecy like a weapon and despair like a banner. They build toward catastrophic moments, each strike and spell announcing an ending already in motion. To face a Doom Harbinger is to hear the future arrive with a blade in its hand.]],
     }
-    for _, preset in ipairs(classPresets) do
+    local manualClassPresets = classPresets
+    local manualPresetNames = {}
+    local autoPresetNames = {}
+    local autoPresetNameCounts = {}
+    classPresets = {}
+
+    for _, preset in ipairs(manualClassPresets) do
         preset.description = presetDescriptions[preset.name] or ""
+        manualPresetNames[preset.name] = preset
     end
+
+    for _, preset in ipairs(ClassForge.autoClassPresets or {}) do
+        if preset.name then
+            autoPresetNameCounts[preset.name] = (autoPresetNameCounts[preset.name] or 0) + 1
+        end
+    end
+
+    local autoPresetNameIndexes = {}
+    for _, preset in ipairs(ClassForge.autoClassPresets or {}) do
+        if preset.name then
+            local manualPreset = manualPresetNames[preset.name]
+            autoPresetNames[preset.name] = true
+            autoPresetNameIndexes[preset.name] = (autoPresetNameIndexes[preset.name] or 0) + 1
+            classPresets[#classPresets + 1] = {
+                name = preset.name,
+                color = preset.color or (manualPreset and manualPreset.color) or "FFFFFF",
+                description = presetDescriptions[preset.name] or preset.description or "",
+                roleFocus = preset.roleFocus,
+                displayName = preset.name
+                    .. (
+                        autoPresetNameCounts[preset.name] and autoPresetNameCounts[preset.name] > 1
+                        and string.format(" [%s %d]", preset.roleFocus or "preset", autoPresetNameIndexes[preset.name])
+                        or ""
+                    ),
+            }
+        end
+    end
+
+    for _, preset in ipairs(manualClassPresets) do
+        if preset.name and not autoPresetNames[preset.name] then
+            classPresets[#classPresets + 1] = preset
+        end
+    end
+
+    table.sort(classPresets, function(left, right)
+        return tostring(left.displayName or left.name or "") < tostring(right.displayName or right.name or "")
+    end)
     local updatePreview
 
     local presetButton = CreateFrame("Button", nil, overview, "UIPanelButtonTemplate")
@@ -439,7 +483,7 @@ function ClassForge:CreateOptionsPanel()
     presetHint:SetText(ClassForge:L("presets_hint"))
 
     local presetPopup = CreateFrame("Frame", "ClassForgePresetPopup", overview)
-    presetPopup:SetWidth(310)
+    presetPopup:SetWidth(390)
     presetPopup:SetHeight(220)
     presetPopup:SetPoint("TOPLEFT", presetButton, "BOTTOMLEFT", 0, -4)
     presetPopup:SetFrameStrata("DIALOG")
@@ -459,7 +503,7 @@ function ClassForge:CreateOptionsPanel()
     presetScrollFrame:SetPoint("BOTTOMRIGHT", -28, 8)
 
     local presetContent = CreateFrame("Frame", nil, presetScrollFrame)
-    presetContent:SetWidth(274)
+    presetContent:SetWidth(354)
     presetContent:SetHeight(#classPresets * 22)
     presetScrollFrame:SetScrollChild(presetContent)
     local colorBox = createEditBox(overview, 220, 30, ClassForge:L("class_color_hex"), 0, -82)
@@ -611,14 +655,14 @@ function ClassForge:CreateOptionsPanel()
 
     for index, preset in ipairs(classPresets) do
         local row = CreateFrame("Button", nil, presetContent)
-        row:SetWidth(274)
+        row:SetWidth(354)
         row:SetHeight(20)
         row:SetPoint("TOPLEFT", 0, -((index - 1) * 22))
 
         row.text = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
         row.text:SetPoint("LEFT", 4, 0)
         row.text:SetJustifyH("LEFT")
-        row.text:SetText(string.format("%s  (#%s)", preset.name, preset.color))
+        row.text:SetText(string.format("%s  (#%s)", preset.displayName or preset.name, preset.color))
 
         row.highlight = row:CreateTexture(nil, "HIGHLIGHT")
         row.highlight:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
